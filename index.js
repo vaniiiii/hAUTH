@@ -1,11 +1,13 @@
 require("dotenv").config();
 const TelegramBot = require("node-telegram-bot-api");
+const speakeasy = require("speakeasy");
+const qrcode = require("qrcode");
 
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 bot.setMyCommands([
-  { command: "start", description: "Start the bot" },
-  { command: "menu", description: "Show main menu" },
-  { command: "settings", description: "View current settings" },
+  { command: "start", description: "🚀 Start" },
+  { command: "menu", description: "📱 Menu" },
+  { command: "settings", description: "⚙️ Settings" },
 ]);
 
 const userSettings = {};
@@ -33,6 +35,7 @@ function sendConfigMenu(chatId) {
       inline_keyboard: [
         [{ text: "Set Value Threshold", callback_data: "config_value" }],
         [{ text: "Set Gas Price Threshold", callback_data: "config_gasprice" }],
+        [{ text: "Setup 2FA", callback_data: "setup_2fa" }],
         [{ text: "🔙 Back to Main Menu", callback_data: "menu_main" }],
       ],
     },
@@ -40,7 +43,20 @@ function sendConfigMenu(chatId) {
   bot.sendMessage(chatId, "⚙️ Configuration Menu:", options);
 }
 
-bot.on("callback_query", (callbackQuery) => {
+async function setup2FA(chatId) {
+  const secret = speakeasy.generateSecret({
+    name: `AI Agent Thai Bot (${chatId})`,
+  });
+
+  userSettings[chatId] = userSettings[chatId] || { ...defaultSettings };
+  userSettings[chatId].secret = secret.base32;
+  userSettings[chatId].isSetup2FA = false;
+
+  const qrBuffer = await qrcode.toBuffer(secret.otpauth_url);
+  return { buffer: qrBuffer, secret };
+}
+
+bot.on("callback_query", async (callbackQuery) => {
   const chatId = callbackQuery.message.chat.id;
   const action = callbackQuery.data;
 
@@ -54,7 +70,8 @@ bot.on("callback_query", (callbackQuery) => {
       chatId,
       `⚙️ Your Current Settings:
 - Value Threshold: ${settings.valueThreshold} ETH
-- Gas Price Threshold: ${settings.gasPriceThreshold} Gwei`,
+- Gas Price Threshold: ${settings.gasPriceThreshold} Gwei
+- 2FA Setup: ${settings.isSetup2FA ? "✅" : "❌"}`,
       {
         reply_markup: {
           inline_keyboard: [
@@ -63,6 +80,32 @@ bot.on("callback_query", (callbackQuery) => {
         },
       }
     );
+  } else if (action === "setup_2fa") {
+    const { buffer, secret } = await setup2FA(chatId);
+    bot.sendMessage(chatId, "Scan this QR code with Google Authenticator:");
+    bot.sendPhoto(chatId, buffer, { filename: "qr-code.png" });
+    bot.sendMessage(
+      chatId,
+      "Enter the code from Google Authenticator to verify setup:"
+    );
+
+    bot.once("message", (msg) => {
+      const code = msg.text;
+      const verified = speakeasy.totp.verify({
+        secret: userSettings[chatId].secret,
+        encoding: "base32",
+        token: code,
+      });
+
+      if (verified) {
+        userSettings[chatId].isSetup2FA = true;
+        bot.sendMessage(chatId, "✅ 2FA setup successful!");
+        showMenu(chatId);
+      } else {
+        bot.sendMessage(chatId, "❌ Invalid code. Please try setup again.");
+        showMenu(chatId);
+      }
+    });
   } else if (action === "menu_simulate") {
     simulateTransaction(chatId);
     bot.sendMessage(chatId, "🎲 Simulating transaction...", {
@@ -122,23 +165,49 @@ function executeTransaction(tx, chatId) {
   }, 2000);
 }
 
-function send2FAMessage(tx, chatId) {
+async function send2FAMessage(tx, chatId) {
   const userConfig = userSettings[chatId] || defaultSettings;
 
   if (
     tx.value > userConfig.valueThreshold ||
     tx.gasPrice > userConfig.gasPriceThreshold
   ) {
-    const message = `
-🔒 **2FA Required**
+    if (!userConfig.isSetup2FA) {
+      bot.sendMessage(
+        chatId,
+        "⚠️ Please setup 2FA first in Configuration Menu"
+      );
+      sendConfigMenu(chatId);
+      return;
+    }
+
+    bot.sendMessage(
+      chatId,
+      `🔒 **2FA Required**
 - **Recipient Address**: ${tx.to}
 - **Value**: ${tx.value} ETH
 - **Gas Price**: ${tx.gasPrice} Gwei
 
-Please reply:
-✅ *yes* - to approve
-❌ *no* - to reject`;
-    bot.sendMessage(chatId, message, { parse_mode: "Markdown" });
+Enter your Google Authenticator code:`,
+      { parse_mode: "Markdown" }
+    );
+
+    bot.once("message", (msg) => {
+      const code = msg.text;
+      const verified = speakeasy.totp.verify({
+        secret: userConfig.secret,
+        encoding: "base32",
+        token: code,
+      });
+
+      if (verified) {
+        bot.sendMessage(chatId, "✅ Code verified. Executing transaction...");
+        executeTransaction(tx, chatId);
+      } else {
+        bot.sendMessage(chatId, "❌ Invalid code. Please try again.");
+        send2FAMessage(tx, chatId);
+      }
+    });
   } else {
     bot.sendMessage(
       chatId,
@@ -170,7 +239,8 @@ bot.onText(/\/settings/, (msg) => {
     chatId,
     `⚙️ Your Current Settings:
 - Value Threshold: ${settings.valueThreshold} ETH
-- Gas Price Threshold: ${settings.gasPriceThreshold} Gwei`,
+- Gas Price Threshold: ${settings.gasPriceThreshold} Gwei
+- 2FA Setup: ${settings.isSetup2FA ? "✅" : "❌"}`,
     {
       reply_markup: {
         inline_keyboard: [
@@ -185,7 +255,11 @@ bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
 
   if (!userSettings[chatId]) {
-    userSettings[chatId] = { ...defaultSettings };
+    userSettings[chatId] = {
+      ...defaultSettings,
+      secret: null,
+      isSetup2FA: false,
+    };
   }
 
   bot.sendMessage(chatId, "🤖 Welcome to AI Agent Thai Bot!");
