@@ -30,16 +30,27 @@ async function showMenu(chatId) {
 }
 
 function sendConfigMenu(chatId) {
+  const settings = userSettings[chatId] || defaultSettings;
+
+  const menuItems = [
+    [{ text: "Set Value Threshold", callback_data: "config_value" }],
+    [{ text: "Set Gas Price Threshold", callback_data: "config_gasprice" }],
+  ];
+
+  if (!settings.isSetup2FA) {
+    menuItems.push([{ text: "Setup 2FA", callback_data: "setup_2fa" }]);
+  }
+
+  menuItems.push([
+    { text: "🔙 Back to Main Menu", callback_data: "menu_main" },
+  ]);
+
   const options = {
     reply_markup: {
-      inline_keyboard: [
-        [{ text: "Set Value Threshold", callback_data: "config_value" }],
-        [{ text: "Set Gas Price Threshold", callback_data: "config_gasprice" }],
-        [{ text: "Setup 2FA", callback_data: "setup_2fa" }],
-        [{ text: "🔙 Back to Main Menu", callback_data: "menu_main" }],
-      ],
+      inline_keyboard: menuItems,
     },
   };
+
   bot.sendMessage(chatId, "⚙️ Configuration Menu:", options);
 }
 
@@ -254,12 +265,31 @@ bot.onText(/\/settings/, (msg) => {
 bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id;
 
-  if (!userSettings[chatId]) {
+  const isNewUser = !userSettings[chatId];
+
+  if (isNewUser) {
     userSettings[chatId] = {
       ...defaultSettings,
       secret: null,
       isSetup2FA: false,
     };
+
+    await bot.sendPhoto(
+      chatId,
+      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSWWyPHbGKgAaIoCN1HfmNqj78V8SRXDX2Y4Q&s",
+      {
+        caption: `🔒 *AI Agent Thai Bot - Your Web3 Security Assistant*
+  
+  This bot helps protect your transactions by:
+  • Setting custom value thresholds
+  • Monitoring gas prices
+  • Providing 2FA verification
+  • Ensuring transaction security
+  
+  Get started by configuring your settings! 🚀`,
+        parse_mode: "Markdown",
+      }
+    );
   }
 
   await bot.sendMessage(chatId, "🤖 Welcome to AI Agent Thai Bot!");
