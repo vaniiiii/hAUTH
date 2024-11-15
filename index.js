@@ -95,11 +95,31 @@ bot.on("callback_query", async (callbackQuery) => {
     );
   } else if (action === "setup_2fa") {
     const { buffer, secret } = await setup2FA(chatId);
-    bot.sendMessage(chatId, "Scan this QR code with Google Authenticator:");
-    bot.sendPhoto(chatId, buffer, { filename: "qr-code.png" });
+
     bot.sendMessage(
       chatId,
-      "Enter the code from Google Authenticator to verify setup:"
+      "Option 1: Scan this QR code with Google Authenticator:"
+    );
+    bot.sendPhoto(chatId, buffer, { filename: "qr-code.png" });
+
+    bot.sendMessage(
+      chatId,
+      `Option 2: Manual Entry
+1️⃣ Open Google Authenticator
+2️⃣ Click '+' > Enter a setup key
+3️⃣ Name: AI Agent Thai Bot
+4️⃣ Copy this key:
+\`${secret.base32}\`
+
+After adding using either method, please enter the code to verify setup:`,
+      {
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "📋 Copy Key", callback_data: `copy_${secret.base32}` }],
+          ],
+        },
+      }
     );
 
     bot.once("message", (msg) => {
