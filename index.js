@@ -16,7 +16,7 @@ const defaultSettings = {
   gasPriceThreshold: 100,
 };
 
-function showMenu(chatId) {
+async function showMenu(chatId) {
   const options = {
     reply_markup: {
       inline_keyboard: [
@@ -26,7 +26,7 @@ function showMenu(chatId) {
       ],
     },
   };
-  bot.sendMessage(chatId, "Select an option:", options);
+  await bot.sendMessage(chatId, "Select an option:", options);
 }
 
 function sendConfigMenu(chatId) {
@@ -251,7 +251,7 @@ bot.onText(/\/settings/, (msg) => {
   );
 });
 
-bot.onText(/\/start/, (msg) => {
+bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id;
 
   if (!userSettings[chatId]) {
@@ -262,6 +262,6 @@ bot.onText(/\/start/, (msg) => {
     };
   }
 
-  bot.sendMessage(chatId, "🤖 Welcome to AI Agent Thai Bot!");
+  await bot.sendMessage(chatId, "🤖 Welcome to AI Agent Thai Bot!");
   showMenu(chatId);
 });
