@@ -37,7 +37,9 @@ function sendConfigMenu(chatId) {
     [{ text: "Set Gas Price Threshold", callback_data: "config_gasprice" }],
   ];
 
-  if (!settings.isSetup2FA) {
+  if (settings.isSetup2FA) {
+    menuItems.push([{ text: "❌ Delete 2FA", callback_data: "delete_2fa" }]);
+  } else {
     menuItems.push([{ text: "Setup 2FA", callback_data: "setup_2fa" }]);
   }
 
@@ -125,6 +127,23 @@ bot.on("callback_query", async (callbackQuery) => {
           [{ text: "🔙 Back to Main Menu", callback_data: "menu_main" }],
         ],
       },
+    });
+  } else if (action === "delete_2fa") {
+    bot.sendMessage(
+      chatId,
+      "Are you sure you want to delete 2FA? Type 'confirm' to proceed:"
+    );
+
+    bot.once("message", (msg) => {
+      if (msg.text.toLowerCase() === "confirm") {
+        userSettings[chatId].secret = null;
+        userSettings[chatId].isSetup2FA = false;
+        bot.sendMessage(chatId, "✅ 2FA has been removed successfully.");
+        sendConfigMenu(chatId);
+      } else {
+        bot.sendMessage(chatId, "❌ 2FA deletion cancelled.");
+        sendConfigMenu(chatId);
+      }
     });
   } else if (action === "config_value") {
     bot.sendMessage(chatId, "💡 Enter the new Value Threshold in ETH:");
