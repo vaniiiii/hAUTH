@@ -2,6 +2,11 @@ require("dotenv").config();
 const TelegramBot = require("node-telegram-bot-api");
 
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
+bot.setMyCommands([
+  { command: "start", description: "Start the bot" },
+  { command: "menu", description: "Show main menu" },
+  { command: "settings", description: "View current settings" },
+]);
 
 const userSettings = {};
 const defaultSettings = {
@@ -153,6 +158,28 @@ function simulateTransaction(chatId) {
   console.log(`Simulating transaction for user ${chatId}...`);
   send2FAMessage(mockTransaction, chatId);
 }
+
+bot.onText(/\/menu/, (msg) => {
+  showMenu(msg.chat.id);
+});
+
+bot.onText(/\/settings/, (msg) => {
+  const chatId = msg.chat.id;
+  const settings = userSettings[chatId] || defaultSettings;
+  bot.sendMessage(
+    chatId,
+    `⚙️ Your Current Settings:
+- Value Threshold: ${settings.valueThreshold} ETH
+- Gas Price Threshold: ${settings.gasPriceThreshold} Gwei`,
+    {
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "🔙 Back to Main Menu", callback_data: "menu_main" }],
+        ],
+      },
+    }
+  );
+});
 
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
