@@ -1,0 +1,18 @@
+{
+  "name": "ai-agents",
+  "version": "1.0.0",
+  "main": "1inchService.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@1inch/cross-chain-sdk": "^0.1.10",
+    "ethers": "^6.13.4",
+    "express": "^4.21.1",
+    "web3": "^4.15.0"
+  }
+}
