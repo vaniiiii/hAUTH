@@ -2,7 +2,7 @@ require("dotenv").config();
 const { ethers } = require("ethers");
 
 const APPROVAL_SERVER = "http://localhost:3000";
-const AGENT_ADDRESS = "0x6B1dca08155232943ca69FA726a8A1C76f4Ebb8C";
+const AGENT_ADDRESS = "0xb3a1956Cff1ecc8054B81b0C83b9847CB71384b8";
 
 // Thresholds - bot should be configured with these values:
 // Value threshold: 1.0 ETH

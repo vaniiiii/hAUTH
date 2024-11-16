@@ -4,17 +4,24 @@ const TelegramBot = require("node-telegram-bot-api");
 const speakeasy = require("speakeasy");
 const qrcode = require("qrcode");
 const cors = require("cors");
-const ethers = require("ethers");
+const { ethers } = require("ethers");
 const {
   validateAndFormatThreshold,
   formatWeiValue,
   isExceedingThreshold,
 } = require("./utils");
+const {
+  registerAgentOnChain,
+  updateThresholdsOnChain,
+  toggle2FAOnChain,
+  getAgentConfigFromChain,
+  getUserAgentsFromChain,
+  checkTransactionApproval,
+} = require("./contract");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 
 // Initialize ethers provider (you can use Infura, Alchemy, or any other provider)
@@ -23,9 +30,9 @@ const provider = new ethers.AlchemyProvider(
   process.env.ALCHEMY_API_KEY
 );
 // TODO Data storage like Filecoin/Storacha/Nillio
-const agentSettings = new Map();
+const agentSettings = new Map(); // Only for 2FA secrets
 const pendingApprovals = new Map();
-const userAgents = new Map();
+const userAgents = new Map(); // For quick telegram chat ID lookups
 
 const defaultSettings = {
   valueThreshold: "10000000000000", // 0.00001 ETH in Wei
@@ -74,14 +81,14 @@ bot.onText(/^\/register(?:\s+(.+))?$/, async (msg, match) => {
       await bot.sendMessage(
         chatId,
         "*How to Register Your AI Agent:*\n\n" +
-          "Provide your agent's Ethereum address using the format:\n" +
-          "`/register <ethereum_address>`\n\n" +
+          "Provide agent and owner addresses using the format:\n" +
+          "`/register <agent_address> <owner_address>`\n\n" +
           "*Example:*\n" +
-          "`/register 0x742d35Cc6634C0532925a3b844Bc454e4438f44e`\n\n" +
+          "`/register 0x742d35Cc6634C0532925a3b844Bc454e4438f44e 0x123...`\n\n" +
           "*Requirements:*\n" +
-          "• Valid Ethereum address\n" +
+          "• Valid Ethereum addresses\n" +
           "• One registration per agent\n" +
-          "• Secure address storage",
+          "• Agent and owner addresses must be different",
         {
           parse_mode: "Markdown",
           disable_web_page_preview: true,
@@ -90,67 +97,38 @@ bot.onText(/^\/register(?:\s+(.+))?$/, async (msg, match) => {
       return;
     }
 
-    let agentAddress = match[1].trim();
-
-    /* Resolve ENS name to Ethereum address */
-    if (agentAddress.endsWith(".eth")) {
-      try {
-        agentAddress = await provider.resolveName(agentAddress);
-        if (!agentAddress) {
-          throw new Error("Invalid ENS name");
-        }
-      } catch (error) {
-        await bot.sendMessage(
-          chatId,
-          "Invalid ENS name. Please provide a valid ENS name or Ethereum address."
-        );
-        return;
-      }
-    }
-
-    if (!ethers.isAddress(agentAddress)) {
+    const addresses = match[1].trim().split(/\s+/);
+    if (addresses.length !== 2) {
       await bot.sendMessage(
         chatId,
-        "*Error:* Invalid Ethereum address\n\n" +
-          "Please provide a valid address like:\n" +
-          "0x742d35Cc6634C0532925a3b844Bc454e4438f44e\n\n" +
-          "or\n\n" +
-          "ENS name like:\n" +
-          "myagent.eth",
-        {
-          parse_mode: "Markdown",
-          disable_web_page_preview: true,
-        }
+        "Please provide both agent and owner addresses.",
+        { parse_mode: "Markdown" }
       );
       return;
     }
 
-    if (agentSettings.has(agentAddress)) {
-      const existingAgent = agentSettings.get(agentAddress);
-      if (existingAgent.telegramChatId === chatId) {
-        await bot.sendMessage(
-          chatId,
-          "*Error:* Agent already registered\n\n" +
-            "Use /agents to view your registered agents.",
-          { parse_mode: "Markdown" }
-        );
-      } else {
-        await bot.sendMessage(
-          chatId,
-          "*Error:* This agent is registered to another user.",
-          { parse_mode: "Markdown" }
-        );
-      }
+    let [agentAddress, ownerAddress] = addresses;
+
+    if (!ethers.isAddress(agentAddress) || !ethers.isAddress(ownerAddress)) {
+      await bot.sendMessage(
+        chatId,
+        "*Error:* Invalid Ethereum address(es)\n\n" +
+          "Please provide valid addresses.",
+        { parse_mode: "Markdown" }
+      );
       return;
     }
 
     try {
+      await registerAgentOnChain(agentAddress, ownerAddress, chatId, bot);
+
       agentSettings.set(agentAddress, {
-        ...defaultSettings,
+        secret: null,
+        isSetup2FA: false,
         telegramChatId: chatId,
       });
 
-      // Add to user's agents
+      // Add to user's local agents list
       if (!userAgents.has(chatId)) {
         userAgents.set(chatId, new Set());
       }
@@ -159,7 +137,8 @@ bot.onText(/^\/register(?:\s+(.+))?$/, async (msg, match) => {
       await bot.sendMessage(
         chatId,
         "*✅ AI Agent Successfully Registered*\n\n" +
-          `*Address:* \`${agentAddress}\`\n\n` +
+          `*Agent Address:* \`${agentAddress}\`\n` +
+          `*Owner Address:* \`${ownerAddress}\`\n\n` +
           "Please configure your security settings:",
         {
           parse_mode: "Markdown",
@@ -181,32 +160,22 @@ bot.onText(/^\/register(?:\s+(.+))?$/, async (msg, match) => {
           },
         }
       );
-    } catch (registerError) {
-      console.error("Error during registration:", registerError);
+    } catch (error) {
+      console.error("Error during registration:", error);
       await bot.sendMessage(
         chatId,
         "*Error:* Registration failed. Please try again later.",
         { parse_mode: "Markdown" }
       );
 
-      if (agentSettings.has(agentAddress)) {
-        agentSettings.delete(agentAddress);
-      }
+      agentSettings.delete(agentAddress);
       if (userAgents.has(chatId)) {
         userAgents.get(chatId).delete(agentAddress);
       }
     }
   } catch (error) {
     console.error("Error in register command:", error);
-    try {
-      await bot.sendMessage(
-        chatId,
-        "*Error:* Something went wrong. Please try again.",
-        { parse_mode: "Markdown" }
-      );
-    } catch (sendError) {
-      console.error("Error sending error message:", sendError);
-    }
+    await bot.sendMessage(chatId, "An error occurred. Please try again.");
   }
 });
 
@@ -229,42 +198,51 @@ bot.onText(/\/agents/, async (msg) => {
     return;
   }
 
-  let message = "*Your Registered AI Agents:*\n\n";
-  const inlineKeyboard = [];
+  try {
+    let message = "*Your Registered AI Agents:*\n\n";
+    const inlineKeyboard = [];
 
-  for (const agentAddress of agents) {
-    const settings = agentSettings.get(agentAddress);
-    message += `*Agent:* \`${agentAddress}\`\n`;
-    message += `├ Threshold: ${settings.valueThreshold} ETH\n`;
-    message += `└ 2FA: ${settings.isSetup2FA ? "✅" : "❌"}\n\n`;
+    for (const agentAddress of agents) {
+      const onChainConfig = await getAgentConfigFromChain(agentAddress);
+      const localSettings = agentSettings.get(agentAddress); // For 2FA status only
+
+      message += `*Agent:* \`${agentAddress}\`\n`;
+      message += `├ Value Threshold: ${ethers.formatEther(onChainConfig.valueThreshold)} ETH\n`;
+      message += `├ Gas Threshold: ${ethers.formatUnits(onChainConfig.gasThreshold, "gwei")} Gwei\n`;
+      message += `└ 2FA: ${localSettings.isSetup2FA ? "✅" : "❌"}\n\n`;
+
+      inlineKeyboard.push([
+        {
+          text: `⚙️ Configure ${agentAddress.slice(0, 6)}...${agentAddress.slice(-4)}`,
+          callback_data: `config_${agentAddress}`,
+        },
+      ]);
+    }
+
+    inlineKeyboard.push([
+      { text: "➕ Register New Agent", callback_data: "register_new" },
+    ]);
 
     inlineKeyboard.push([
       {
-        text: `⚙️ Configure ${agentAddress.slice(0, 6)}...${agentAddress.slice(
-          -4
-        )}`,
-        callback_data: `config_${agentAddress}`,
+        text: "🤖 View My Agents Metrics In Mini App",
+        web_app: { url: "https://google.com" },
       },
     ]);
+
+    await bot.sendMessage(chatId, message, {
+      parse_mode: "Markdown",
+      reply_markup: {
+        inline_keyboard: inlineKeyboard,
+      },
+    });
+  } catch (error) {
+    console.error("Error in /agents command:", error);
+    await bot.sendMessage(
+      chatId,
+      "Error fetching agent configurations. Please try again."
+    );
   }
-
-  inlineKeyboard.push([
-    { text: "➕ Register New Agent", callback_data: "register_new" },
-  ]);
-
-  inlineKeyboard.push([
-    {
-      text: "🤖 View My Agents Metrics In Mini App",
-      web_app: { url: "https://google.com" },
-    },
-  ]);
-
-  bot.sendMessage(chatId, message, {
-    parse_mode: "Markdown",
-    reply_markup: {
-      inline_keyboard: inlineKeyboard,
-    },
-  });
 });
 
 bot.onText(/\/settings/, (msg) => {
@@ -323,55 +301,73 @@ Need more help? Contact support at support@guardianbot.com`,
   );
 });
 
-function sendConfigMenu(chatId, agentAddress) {
-  const settings = agentSettings.get(agentAddress);
-  const menuItems = [
-    [
-      {
-        text: "📊 Set Value Threshold",
-        callback_data: `threshold_${agentAddress}`,
-      },
-    ],
-    [
-      {
-        text: "⛽ Set Gas Threshold",
-        callback_data: `gas_${agentAddress}`,
-      },
-    ],
-  ];
+async function sendConfigMenu(chatId, agentAddress) {
+  try {
+    const onChainConfig = await getAgentConfigFromChain(agentAddress);
 
-  if (settings.isSetup2FA) {
+    if (!agentSettings.has(agentAddress)) {
+      agentSettings.set(agentAddress, {
+        secret: null,
+        isSetup2FA: false,
+        telegramChatId: chatId,
+      });
+    }
+    const localSettings = agentSettings.get(agentAddress);
+
+    const menuItems = [
+      [
+        {
+          text: "📊 Set Value Threshold",
+          callback_data: `threshold_${agentAddress}`,
+        },
+      ],
+      [
+        {
+          text: "⛽ Set Gas Threshold",
+          callback_data: `gas_${agentAddress}`,
+        },
+      ],
+    ];
+
+    if (localSettings.isSetup2FA) {
+      menuItems.push([
+        { text: "❌ Remove 2FA", callback_data: `remove_2fa_${agentAddress}` },
+      ]);
+    } else {
+      menuItems.push([
+        { text: "🔐 Setup 2FA", callback_data: `setup_2fa_${agentAddress}` },
+      ]);
+    }
+
     menuItems.push([
-      { text: "❌ Remove 2FA", callback_data: `remove_2fa_${agentAddress}` },
+      { text: "🗑️ Delete Agent", callback_data: `delete_${agentAddress}` },
     ]);
-  } else {
+
     menuItems.push([
-      { text: "🔐 Setup 2FA", callback_data: `setup_2fa_${agentAddress}` },
+      { text: "↩️ Back to Agents", callback_data: "back_to_agents" },
     ]);
-  }
 
-  menuItems.push([
-    { text: "🗑️ Delete Agent", callback_data: `delete_${agentAddress}` },
-  ]);
-
-  menuItems.push([
-    { text: "↩️ Back to Agents", callback_data: "back_to_agents" },
-  ]);
-
-  const message = `*AI Agent Settings*
+    const message = `*AI Agent Settings*
 Address: \`${agentAddress}\`
 
 Current Configuration:
-- Value Threshold: ${formatWeiValue(settings.valueThreshold)} ETH
-- Gas Threshold: ${formatWeiValue(settings.gasThreshold, "gwei")} Gwei
-- 2FA Enabled: ${settings.isSetup2FA ? "✅" : "❌"}`;
+- Value Threshold: ${ethers.formatEther(onChainConfig.valueThreshold)} ETH
+- Gas Threshold: ${ethers.formatUnits(onChainConfig.gasThreshold, "gwei")} Gwei
+- 2FA Enabled: ${localSettings.isSetup2FA ? "✅" : "❌"}`;
 
-  bot.sendMessage(chatId, message, {
-    parse_mode: "Markdown",
-    reply_markup: {
-      inline_keyboard: menuItems,
-    },
-  });
+    await bot.sendMessage(chatId, message, {
+      parse_mode: "Markdown",
+      reply_markup: {
+        inline_keyboard: menuItems,
+      },
+    });
+  } catch (error) {
+    console.error("Error in sendConfigMenu:", error);
+    await bot.sendMessage(
+      chatId,
+      "Error fetching configuration. Please try again."
+    );
+  }
 }
 
 async function setup2FA(chatId, agentAddress) {
@@ -430,50 +426,53 @@ bot.on("callback_query", async (callbackQuery) => {
   const data = callbackQuery.data;
 
   if (data === "back_to_agents") {
-    const agents = userAgents.get(chatId);
+    try {
+      const agents = userAgents.get(chatId);
 
-    let message = "*Your Registered AI Agents:*\n\n";
-    const inlineKeyboard = [];
+      let message = "*Your Registered AI Agents:*\n\n";
+      const inlineKeyboard = [];
 
-    for (const agentAddress of agents) {
-      const settings = agentSettings.get(agentAddress);
-      message += `*Agent:* \`${agentAddress}\`\n`;
-      message += `├ Value Threshold: ${formatWeiValue(
-        settings.valueThreshold
-      )} ETH\n`;
-      message += `├ Gas Threshold: ${formatWeiValue(
-        settings.gasThreshold,
-        "gwei"
-      )} Gwei\n`;
-      message += `└ 2FA: ${settings.isSetup2FA ? "✅" : "❌"}\n\n`;
+      for (const agentAddress of agents) {
+        const onChainConfig = await getAgentConfigFromChain(agentAddress);
+        const localSettings = agentSettings.get(agentAddress); // For 2FA status only
+
+        message += `*Agent:* \`${agentAddress}\`\n`;
+        message += `├ Value Threshold: ${ethers.formatEther(onChainConfig.valueThreshold)} ETH\n`;
+        message += `├ Gas Threshold: ${ethers.formatUnits(onChainConfig.gasThreshold, "gwei")} Gwei\n`;
+        message += `└ 2FA: ${localSettings.isSetup2FA ? "✅" : "❌"}\n\n`;
+
+        inlineKeyboard.push([
+          {
+            text: `⚙️ Configure ${agentAddress.slice(0, 6)}...${agentAddress.slice(-4)}`,
+            callback_data: `config_${agentAddress}`,
+          },
+        ]);
+      }
 
       inlineKeyboard.push([
-        {
-          text: `⚙️ Configure ${agentAddress.slice(
-            0,
-            6
-          )}...${agentAddress.slice(-4)}`,
-          callback_data: `config_${agentAddress}`,
-        },
+        { text: "➕ Register New Agent", callback_data: "register_new" },
       ]);
+
+      await bot.editMessageText(message, {
+        chat_id: chatId,
+        message_id: callbackQuery.message.message_id,
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: inlineKeyboard,
+        },
+      });
+    } catch (error) {
+      console.error("Error in back_to_agents:", error);
+      await bot.sendMessage(
+        chatId,
+        "Error fetching agent configurations. Please try again."
+      );
     }
-
-    inlineKeyboard.push([
-      { text: "➕ Register New Agent", callback_data: "register_new" },
-    ]);
-
-    await bot.editMessageText(message, {
-      chat_id: chatId,
-      message_id: callbackQuery.message.message_id,
-      parse_mode: "Markdown",
-      reply_markup: {
-        inline_keyboard: inlineKeyboard,
-      },
-    });
   } else if (data.startsWith("config_")) {
     const agentAddress = data.split("_")[1];
     sendConfigMenu(chatId, agentAddress);
-  } else if (data.startsWith("threshold_")) {
+  }
+  if (data.startsWith("threshold_")) {
     const agentAddress = data.split("_")[1];
     await bot.sendMessage(
       chatId,
@@ -484,20 +483,25 @@ bot.on("callback_query", async (callbackQuery) => {
       if (msg.chat.id !== chatId) return;
 
       try {
-        const { weiValue, displayValue } = validateAndFormatThreshold(msg.text);
+        const { weiValue } = validateAndFormatThreshold(msg.text);
+        const onChainConfig = await getAgentConfigFromChain(agentAddress);
 
-        const settings = agentSettings.get(agentAddress);
-        settings.valueThreshold = weiValue;
-        agentSettings.set(agentAddress, settings);
+        await updateThresholdsOnChain(
+          agentAddress,
+          weiValue,
+          onChainConfig.gasThreshold,
+          chatId,
+          bot
+        );
 
         await bot.sendMessage(
           chatId,
-          `✅ Value threshold updated to ${displayValue} ETH`
+          `✅ Value threshold updated to ${ethers.formatEther(weiValue)} ETH`
         );
-        sendConfigMenu(chatId, agentAddress);
+        await sendConfigMenu(chatId, agentAddress);
       } catch (error) {
         await bot.sendMessage(chatId, `❌ ${error.message}`);
-        sendConfigMenu(chatId, agentAddress);
+        await sendConfigMenu(chatId, agentAddress);
       }
     });
   } else if (data.startsWith("gas_")) {
@@ -511,23 +515,25 @@ bot.on("callback_query", async (callbackQuery) => {
       if (msg.chat.id !== chatId) return;
 
       try {
-        const { weiValue, displayValue } = validateAndFormatThreshold(
-          msg.text,
-          "gwei"
-        );
+        const { weiValue } = validateAndFormatThreshold(msg.text, "gwei");
+        const onChainConfig = await getAgentConfigFromChain(agentAddress);
 
-        const settings = agentSettings.get(agentAddress);
-        settings.gasThreshold = weiValue;
-        agentSettings.set(agentAddress, settings);
+        await updateThresholdsOnChain(
+          agentAddress,
+          weiValue,
+          onChainConfig.gasThreshold,
+          chatId,
+          bot
+        );
 
         await bot.sendMessage(
           chatId,
-          `✅ Gas threshold updated to ${displayValue} Gwei`
+          `✅ Gas threshold updated to ${ethers.formatUnits(weiValue, "gwei")} Gwei`
         );
-        sendConfigMenu(chatId, agentAddress);
+        await sendConfigMenu(chatId, agentAddress);
       } catch (error) {
         await bot.sendMessage(chatId, `❌ ${error.message}`);
-        sendConfigMenu(chatId, agentAddress);
+        await sendConfigMenu(chatId, agentAddress);
       }
     });
   } else if (data === "register_new") {
@@ -676,10 +682,6 @@ app.post("/api/request-approval", async (req, res) => {
   try {
     const { agentAddress, transaction } = req.body;
 
-    if (!agentSettings.has(agentAddress)) {
-      return res.status(400).json({ error: "Agent not registered" });
-    }
-
     if (
       !transaction ||
       !transaction.value ||
@@ -687,23 +689,20 @@ app.post("/api/request-approval", async (req, res) => {
       !transaction.gasPrice
     ) {
       return res.status(400).json({
-        error:
-          "Invalid transaction format. Required fields: value (in Wei), to, gasPrice (in Wei)",
+        error: "Invalid transaction format",
       });
     }
 
-    const settings = agentSettings.get(agentAddress);
-    const valueExceeded = isExceedingThreshold(
+    const { needsApproval, needs2FA } = await checkTransactionApproval(
+      agentAddress,
       transaction.value,
-      settings.valueThreshold
-    );
-    const gasExceeded = isExceedingThreshold(
-      transaction.gasPrice,
-      settings.gasThreshold
+      transaction.gasPrice
     );
 
-    if (valueExceeded || gasExceeded) {
+    if (needsApproval) {
+      const onChainConfig = await getAgentConfigFromChain(agentAddress);
       const approvalId = Date.now().toString();
+
       pendingApprovals.set(approvalId, {
         transaction,
         agentAddress,
@@ -711,10 +710,19 @@ app.post("/api/request-approval", async (req, res) => {
         timestamp: Date.now(),
       });
 
-      const valueInEth = formatWeiValue(transaction.value);
-      const thresholdInEth = formatWeiValue(settings.valueThreshold);
-      const gasInGwei = formatWeiValue(transaction.gasPrice, "gwei");
-      const gasThresholdGwei = formatWeiValue(settings.gasThreshold, "gwei");
+      const valueInEth = ethers.formatEther(transaction.value);
+      const thresholdInEth = ethers.formatEther(onChainConfig.valueThreshold);
+      const gasInGwei = ethers.formatUnits(transaction.gasPrice, "gwei");
+      const gasThresholdGwei = ethers.formatUnits(
+        onChainConfig.gasThreshold,
+        "gwei"
+      );
+
+      // Calculate if thresholds are exceeded
+      const valueExceeded =
+        BigInt(transaction.value) > BigInt(onChainConfig.valueThreshold);
+      const gasExceeded =
+        BigInt(transaction.gasPrice) > BigInt(onChainConfig.gasThreshold);
 
       const message = `🚨 *High Risk Transaction Detected!*
 
@@ -734,7 +742,7 @@ ${gasExceeded ? "⛽ Gas price exceeds threshold" : ""}
 
 Do you approve this transaction?`;
 
-      await bot.sendMessage(settings.telegramChatId, message, {
+      await bot.sendMessage(onChainConfig.metadata, message, {
         parse_mode: "Markdown",
         reply_markup: {
           inline_keyboard: [
