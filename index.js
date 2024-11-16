@@ -187,25 +187,43 @@ bot.onText(/\/agents/, async (msg) => {
   if (!agents || agents.size === 0) {
     bot.sendMessage(
       chatId,
-      "You haven't registered any AI agents yet.\nUse /register to add one."
+      "You haven't registered any AI agents yet.\nUse /register to add one.",
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "➕ Register New Agent", callback_data: "register_new" }],
+          ],
+        },
+      }
     );
     return;
   }
 
   let message = "*Your Registered AI Agents:*\n\n";
+  const inlineKeyboard = [];
+
   for (const agentAddress of agents) {
     const settings = agentSettings.get(agentAddress);
     message += `*Agent:* \`${agentAddress}\`\n`;
     message += `├ Threshold: ${settings.valueThreshold} ETH\n`;
     message += `└ 2FA: ${settings.isSetup2FA ? "✅" : "❌"}\n\n`;
+
+    inlineKeyboard.push([
+      {
+        text: `⚙️ Configure ${agentAddress.slice(0, 6)}...${agentAddress.slice(-4)}`,
+        callback_data: `config_${agentAddress}`,
+      },
+    ]);
   }
+
+  inlineKeyboard.push([
+    { text: "➕ Register New Agent", callback_data: "register_new" },
+  ]);
 
   bot.sendMessage(chatId, message, {
     parse_mode: "Markdown",
     reply_markup: {
-      inline_keyboard: [
-        [{ text: "➕ Register New Agent", callback_data: "register_new" }],
-      ],
+      inline_keyboard: inlineKeyboard,
     },
   });
 });
@@ -393,6 +411,19 @@ bot.on("callback_query", async (callbackQuery) => {
       );
       sendConfigMenu(chatId, agentAddress);
     });
+  } else if (data === "register_new") {
+    await bot.sendMessage(
+      chatId,
+      "*How to Register Your AI Agent:*\n\n" +
+        "Provide your agent's Ethereum address using the format:\n" +
+        "`/register <ethereum_address>`\n\n" +
+        "*Example:*\n" +
+        "`/register 0x742d35Cc6634C0532925a3b844Bc454e4438f44e`",
+      {
+        parse_mode: "Markdown",
+        disable_web_page_preview: true,
+      }
+    );
   } else if (data.startsWith("setup_2fa_")) {
     const agentAddress = data.split("_")[2];
     setup2FA(chatId, agentAddress);
