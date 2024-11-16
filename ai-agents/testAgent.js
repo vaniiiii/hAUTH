@@ -2,7 +2,7 @@ require("dotenv").config();
 const { ethers } = require("ethers");
 
 const APPROVAL_SERVER = "http://localhost:3000";
-const AGENT_ADDRESS = "0xd286904b31D5166C3E046dD1a171969C76C50E6f";
+const AGENT_ADDRESS = "0x742d35Cc6634C0532925a3b844Bc454e4438f44e"; // @reminder change this to registered AI Agent address
 const EXPLORER_URL = "https://base-sepolia.blockscout.com/tx";
 
 // Thresholds - bot should be configured with these values:
