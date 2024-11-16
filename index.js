@@ -29,6 +29,7 @@ bot.setMyCommands([
   { command: "register", description: "📝 Register AI Agent" },
   { command: "settings", description: "⚙️ View Settings" },
   { command: "agents", description: "🤖 View My Agents" },
+  { command: "help", description: "❓ Get Help" },
 ]);
 
 bot.onText(/\/start/, async (msg) => {
@@ -233,6 +234,36 @@ bot.onText(/\/settings/, (msg) => {
       inline_keyboard: buttons,
     },
   });
+});
+
+bot.onText(/\/help/, async (msg) => {
+  const chatId = msg.chat.id;
+
+  await bot.sendMessage(
+    chatId,
+    `*📚 Available Commands:*
+
+/start - Start the bot and get welcome message
+/register - Register a new AI agent with its ETH address
+/settings - Configure your agents' security settings
+/agents - View list of your registered agents
+/help - Show this help message
+
+*🔐 Security Features:*
+• Value threshold monitoring
+• 2FA protection for high-value transactions
+• Real-time transaction approval
+• Multiple agent management
+
+*🤖 How to Use:*
+1. Register your agent with /register
+2. Set value threshold in settings
+3. Enable 2FA (recommended)
+4. Bot will notify you of high-value transactions
+
+Need more help? Contact support at support@guardianbot.com`,
+    { parse_mode: "Markdown" }
+  );
 });
 
 function sendConfigMenu(chatId, agentAddress) {
