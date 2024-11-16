@@ -672,27 +672,16 @@ process.on("uncaughtException", (error) => {
   console.error("Uncaught exception:", error);
 });
 
-app.post("/api/request-approval", async (req, res) => {
+const axios = require("axios"); // Ensure Axios is installed via npm
+
+async function returnResponse(agentAddress, transaction) {
   try {
-    const { agentAddress, transaction } = req.body;
-
-    if (!agentSettings.has(agentAddress)) {
-      return res.status(400).json({ error: "Agent not registered" });
-    }
-
-    if (
-      !transaction ||
-      !transaction.value ||
-      !transaction.to ||
-      !transaction.gasPrice
-    ) {
-      return res.status(400).json({
-        error:
-          "Invalid transaction format. Required fields: value (in Wei), to, gasPrice (in Wei)",
-      });
-    }
-
     const settings = agentSettings.get(agentAddress);
+    if (!settings) {
+      console.error("Invalid agent address");
+      return;
+    }
+
     const valueExceeded = isExceedingThreshold(
       transaction.value,
       settings.valueThreshold
@@ -716,7 +705,7 @@ app.post("/api/request-approval", async (req, res) => {
       const gasInGwei = formatWeiValue(transaction.gasPrice, "gwei");
       const gasThresholdGwei = formatWeiValue(settings.gasThreshold, "gwei");
 
-      const message = `🚨 *High Risk Transaction Detected!*
+      const message = `🚨 *High Risk Transaction Detected!* 
 
 *AI Agent:* \`${agentAddress}\`
 
@@ -747,33 +736,105 @@ Do you approve this transaction?`;
       });
 
       return new Promise((resolve) => {
-        const checkInterval = setInterval(() => {
+        const checkInterval = setInterval(async () => {
           const approval = pendingApprovals.get(approvalId);
 
+          // If timeout occurs
           if (Date.now() - approval.timestamp > 300000) {
             clearInterval(checkInterval);
             pendingApprovals.delete(approvalId);
-            resolve(res.json({ approved: false, reason: "Approval timeout" }));
+
+            // Notify the returnDataEndpoint
+            await axios.post(transaction.returnDataEndpoint, {
+              approved: false,
+              reason: "Approval timeout",
+            });
+
+            resolve();
           }
 
-          if (approval.status !== "pending") {
+          // If status changes from pending
+          if (approval && approval.status !== "pending") {
             clearInterval(checkInterval);
             pendingApprovals.delete(approvalId);
-            resolve(res.json({ approved: approval.status === "approved" }));
+
+            // Notify the returnDataEndpoint
+            await axios.post(transaction.returnDataEndpoint, {
+              approved: approval.status === "approved",
+              senderSecretKey: transaction.senderSecretKey, // Include the secret key
+            });
+
+            resolve();
           }
-        }, 1000);
+        }, 1000); // Check every second
       });
     }
 
-    return res.json({ approved: true });
+    await axios.post(transaction.returnDataEndpoint, {
+      approved: true,
+      senderSecretKey: transaction.senderSecretKey, // Include the secret key
+    });
   } catch (error) {
     console.error("Error processing approval request:", error);
+
+    // Notify the returnDataEndpoint of an error
+    if (transaction.returnDataEndpoint) {
+      try {
+        await axios.post(transaction.returnDataEndpoint, {
+          approved: false,
+          error: "Internal server error",
+          details: error.message,
+        });
+      } catch (postError) {
+        console.error("Error notifying returnDataEndpoint:", postError);
+      }
+    }
+  }
+}
+
+app.post("/api/request-approval", (req, res) => {
+  try {
+    const { agentAddress, transaction } = req.body;
+
+    // Validate agent address
+    if (!agentSettings.has(agentAddress)) {
+      return res.status(400).json({ error: "Agent not registered" });
+    }
+
+    // Validate transaction structure
+    const requiredFields = [
+      "value",
+      "to",
+      "gasPrice",
+      "returnDataEndpoint",
+      "senderSecretKey",
+    ];
+    const missingFields = requiredFields.filter((field) => !transaction[field]);
+
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        error: `Invalid transaction format. Missing fields: ${missingFields.join(
+          ", "
+        )}`,
+      });
+    }
+
+    // Respond immediately with OK
+    res.status(200).json({ success: true, message: "Request is valid" });
+
+    // Call returnResponse asynchronously, but do not await
+    returnResponse(agentAddress, transaction).catch((error) => {
+      console.error("Error in returnResponse:", error);
+    });
+  } catch (error) {
+    console.error("Error processing request:", error);
     return res.status(500).json({
       error: "Internal server error",
       details: error.message,
     });
   }
 });
+
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
