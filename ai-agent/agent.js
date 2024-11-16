@@ -2,7 +2,8 @@ require("dotenv").config();
 const { ethers } = require("ethers");
 
 const APPROVAL_SERVER = "http://localhost:3000";
-const AGENT_ADDRESS = "0xb3a1956Cff1ecc8054B81b0C83b9847CB71384b8";
+const AGENT_ADDRESS = "0xc53c5031b32c9f37eb2205ccc67c272438322546";
+const EXPLORER_URL = "https://base-sepolia.blockscout.com/tx";
 
 // Thresholds - bot should be configured with these values:
 // Value threshold: 1.0 ETH
@@ -11,21 +12,26 @@ const AGENT_ADDRESS = "0xb3a1956Cff1ecc8054B81b0C83b9847CB71384b8";
 // Test values (70% within limits, 30% exceeding)
 const TEST_SCENARIOS = [
   // Within limits (70%)
-  { value: "0.5", gasMultiplier: 0.8 }, // 0.5 ETH, 80% of current gas
-  { value: "0.75", gasMultiplier: 0.9 }, // 0.75 ETH, 90% of current gas
-  { value: "0.3", gasMultiplier: 0.7 }, // 0.3 ETH, 70% of current gas
-  { value: "0.8", gasMultiplier: 0.85 }, // 0.8 ETH, 85% of current gas
-  { value: "0.6", gasMultiplier: 0.95 }, // 0.6 ETH, 95% of current gas
-  { value: "0.4", gasMultiplier: 0.75 }, // 0.4 ETH, 75% of current gas
-  { value: "0.9", gasMultiplier: 0.88 }, // 0.9 ETH, 88% of current gas
+  { value: "0.5", gasMultiplier: 0.8, type: "Safe" }, // 0.5 ETH, 80% of current gas
+  { value: "0.75", gasMultiplier: 0.9, type: "Safe" }, // 0.75 ETH, 90% of current gas
+  { value: "0.3", gasMultiplier: 0.7, type: "Safe" }, // 0.3 ETH, 70% of current gas
+  { value: "0.8", gasMultiplier: 0.85, type: "Safe" }, // 0.8 ETH, 85% of current gas
+  { value: "0.6", gasMultiplier: 0.95, type: "Safe" }, // 0.6 ETH, 95% of current gas
+  { value: "0.4", gasMultiplier: 0.75, type: "Safe" }, // 0.4 ETH, 75% of current gas
+  { value: "0.9", gasMultiplier: 0.88, type: "Safe" }, // 0.9 ETH, 88% of current gas
 
   // Exceeding limits (30%)
-  { value: "1.2", gasMultiplier: 0.9 }, // High value, normal gas
-  { value: "0.5", gasMultiplier: 1.2 }, // Normal value, high gas
-  { value: "1.5", gasMultiplier: 1.3 }, // Both high
+  { value: "1.2", gasMultiplier: 0.9, type: "High Value" }, // High value, normal gas
+  { value: "0.5", gasMultiplier: 1.2, type: "High Gas" }, // Normal value, high gas
+  { value: "1.5", gasMultiplier: 1.3, type: "High Both" }, // Both high
 ];
 
 let currentScenarioIndex = 0;
+let testResults = {
+  total: 0,
+  approved: 0,
+  rejected: 0,
+};
 
 const provider = new ethers.JsonRpcProvider(
   "https://base-sepolia-rpc.publicnode.com"
@@ -45,12 +51,18 @@ function aiDecisionLogic(currentGasPrice) {
     shouldSend: true,
     value: scenario.value,
     gasPrice: adjustedGasPrice,
+    type: scenario.type,
   };
 }
 
 async function requestApproval(transaction) {
   try {
     console.log("\n📤 Sending approval request to server...");
+    console.log(`Transaction type: ${transaction.type}`);
+
+    console.log(transaction.value);
+    console.log(transaction.gasPrice);
+
     const response = await fetch(`${APPROVAL_SERVER}/api/request-approval`, {
       method: "POST",
       headers: {
@@ -66,7 +78,21 @@ async function requestApproval(transaction) {
       }),
     });
     const result = await response.json();
+
+    // Update test statistics
+    testResults.total++;
+    if (result.approved) {
+      testResults.approved++;
+    } else {
+      testResults.rejected++;
+    }
+
     console.log("Server response:", result);
+    console.log("\nTest Statistics:");
+    console.log(`Total Tests: ${testResults.total}`);
+    console.log(`Approved: ${testResults.approved}`);
+    console.log(`Rejected: ${testResults.rejected}`);
+
     return result.approved;
   } catch (error) {
     console.error("Error requesting approval:", error);
@@ -86,6 +112,7 @@ async function sendTransaction() {
       to: "0xRecipientAddress",
       value: valueInWei,
       gasPrice: BigInt(decision.gasPrice),
+      type: decision.type,
     };
 
     console.log(`\n🤖 AI preparing transaction...`);
@@ -96,6 +123,7 @@ async function sendTransaction() {
     console.log(
       `📊 Base Gas Price: ${ethers.formatUnits(baseGasPrice, "gwei")} Gwei`
     );
+    console.log(`🏷️  Type: ${transaction.type}`);
 
     const approved = await requestApproval(transaction);
 
