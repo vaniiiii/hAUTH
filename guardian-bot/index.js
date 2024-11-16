@@ -610,6 +610,7 @@ bot.on("callback_query", async (callbackQuery) => {
     });
   } else if (data.startsWith("delete_")) {
     const agentAddress = data.split("_")[1];
+    logger.info(`Deletion initiated for agent ${agentAddress}`);
     await bot.sendMessage(
       chatId,
       `Are you sure you want to delete this AI agent?\n\`${agentAddress}\`\n\nType 'DELETE' to confirm:`,
@@ -621,11 +622,19 @@ bot.on("callback_query", async (callbackQuery) => {
 
       if (msg.text === "DELETE") {
         try {
+          logger.info(
+            `Attempting to deactivate agent ${agentAddress} on chain`
+          );
           await deactivateAgentOnChain(agentAddress, chatId, bot);
+          logger.info(`Cleaning up local storage for agent ${agentAddress}`);
           agentSettings.delete(agentAddress);
           userAgents.get(chatId).delete(agentAddress);
+          logger.info(`Agent ${agentAddress} successfully deleted`);
           await bot.sendMessage(chatId, "✅ AI agent deleted successfully");
         } catch (error) {
+          logger.error(
+            `Failed to delete agent ${agentAddress}: ${error.message}`
+          );
           console.error("Error deleting agent:", error);
           await bot.sendMessage(
             chatId,
