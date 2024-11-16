@@ -309,6 +309,10 @@ function sendConfigMenu(chatId, agentAddress) {
     { text: "🗑️ Delete Agent", callback_data: `delete_${agentAddress}` },
   ]);
 
+  menuItems.push([
+    { text: "↩️ Back to Agents", callback_data: "back_to_agents" },
+  ]);
+
   const message = `*AI Agent Settings*
 Address: \`${agentAddress}\`
 
@@ -379,7 +383,39 @@ bot.on("callback_query", async (callbackQuery) => {
   const chatId = callbackQuery.message.chat.id;
   const data = callbackQuery.data;
 
-  if (data.startsWith("config_")) {
+  if (data === "back_to_agents") {
+    const agents = userAgents.get(chatId);
+
+    let message = "*Your Registered AI Agents:*\n\n";
+    const inlineKeyboard = [];
+
+    for (const agentAddress of agents) {
+      const settings = agentSettings.get(agentAddress);
+      message += `*Agent:* \`${agentAddress}\`\n`;
+      message += `├ Threshold: ${settings.valueThreshold} ETH\n`;
+      message += `└ 2FA: ${settings.isSetup2FA ? "✅" : "❌"}\n\n`;
+
+      inlineKeyboard.push([
+        {
+          text: `⚙️ Configure ${agentAddress.slice(0, 6)}...${agentAddress.slice(-4)}`,
+          callback_data: `config_${agentAddress}`,
+        },
+      ]);
+    }
+
+    inlineKeyboard.push([
+      { text: "➕ Register New Agent", callback_data: "register_new" },
+    ]);
+
+    await bot.editMessageText(message, {
+      chat_id: chatId,
+      message_id: callbackQuery.message.message_id,
+      parse_mode: "Markdown",
+      reply_markup: {
+        inline_keyboard: inlineKeyboard,
+      },
+    });
+  } else if (data.startsWith("config_")) {
     const agentAddress = data.split("_")[1];
     sendConfigMenu(chatId, agentAddress);
   } else if (data.startsWith("threshold_")) {
