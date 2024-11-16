@@ -1,62 +1,59 @@
 const ethers = require("ethers");
 
-const parseEthToWei = (ethValue) => {
+const parseWeiValue = (value, unit = "ether") => {
   try {
-    if (ethValue === "") return "0";
-
-    const cleanValue = ethValue.toString().trim();
-
-    return ethers.parseEther(cleanValue);
+    if (value === "") return "0";
+    const cleanValue = value.toString().trim();
+    return ethers.parseUnits(cleanValue, unit).toString();
   } catch (error) {
-    throw new Error("Invalid ETH value");
+    throw new Error(`Invalid ${unit} value`);
   }
 };
 
-const formatWeiToEth = (weiValue) => {
+const formatWeiValue = (weiValue, unit = "ether") => {
   try {
-    return ethers.formatEther(weiValue);
+    return ethers.formatUnits(weiValue, unit);
   } catch (error) {
-    throw new Error("Invalid Wei value");
+    throw new Error(`Invalid Wei value for ${unit} conversion`);
   }
 };
 
-const validateAndFormatThreshold = (input) => {
+const validateAndFormatThreshold = (input, unit = "ether") => {
   try {
     const cleanInput = input.toString().trim();
-
     const value = parseFloat(cleanInput);
+
     if (isNaN(value) || value <= 0) {
       throw new Error("Please enter a positive number");
     }
 
-    const weiValue = parseEthToWei(cleanInput);
+    const weiValue = parseWeiValue(cleanInput, unit);
 
     return {
       weiValue,
       displayValue: Number(cleanInput),
     };
   } catch (error) {
+    const unitDisplay = unit === "ether" ? "ETH" : "Gwei";
     throw new Error(
-      error.message === "Invalid ETH value"
-        ? "Please enter a valid ETH amount (e.g., 0.1, 1, 10)"
+      error.message.includes("Invalid")
+        ? `Please enter a valid ${unitDisplay} amount (e.g., 0.1, 1, 10)`
         : error.message
     );
   }
 };
 
-const isTransactionExceedingThreshold = (transactionWei, thresholdWei) => {
+const isExceedingThreshold = (value, threshold) => {
   try {
-    return ethers.BigNumber.from(transactionWei).gt(
-      ethers.BigNumber.from(thresholdWei)
-    );
+    return BigInt(value) > BigInt(threshold);
   } catch (error) {
-    throw new Error("Error comparing transaction values");
+    throw new Error("Error comparing values");
   }
 };
 
 module.exports = {
-  parseEthToWei,
-  formatWeiToEth,
+  parseWeiValue,
+  formatWeiValue,
   validateAndFormatThreshold,
-  isTransactionExceedingThreshold,
+  isExceedingThreshold,
 };

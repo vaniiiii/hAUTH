@@ -5,7 +5,11 @@ const speakeasy = require("speakeasy");
 const qrcode = require("qrcode");
 const cors = require("cors");
 const ethers = require("ethers");
-const { validateAndFormatThreshold, formatWeiToEth } = require("./utils");
+const {
+  validateAndFormatThreshold,
+  formatWeiValue,
+  isExceedingThreshold,
+} = require("./utils");
 
 const app = express();
 app.use(cors());
@@ -19,7 +23,8 @@ const pendingApprovals = new Map();
 const userAgents = new Map();
 
 const defaultSettings = {
-  valueThreshold: "10000000000000",
+  valueThreshold: "10000000000000", // 0.00001 ETH in Wei
+  gasThreshold: "50000000000", // 50 Gwei in Wei
   isSetup2FA: false,
   secret: null,
   telegramChatId: null,
@@ -294,6 +299,12 @@ function sendConfigMenu(chatId, agentAddress) {
         callback_data: `threshold_${agentAddress}`,
       },
     ],
+    [
+      {
+        text: "⛽ Set Gas Threshold",
+        callback_data: `gas_${agentAddress}`,
+      },
+    ],
   ];
 
   if (settings.isSetup2FA) {
@@ -318,8 +329,9 @@ function sendConfigMenu(chatId, agentAddress) {
 Address: \`${agentAddress}\`
 
 Current Configuration:
-• Value Threshold: ${formatWeiToEth(settings.valueThreshold)} ETH
-• 2FA Enabled: ${settings.isSetup2FA ? "✅" : "❌"}`;
+- Value Threshold: ${formatWeiValue(settings.valueThreshold)} ETH
+- Gas Threshold: ${formatWeiValue(settings.gasThreshold, "gwei")} Gwei
+- 2FA Enabled: ${settings.isSetup2FA ? "✅" : "❌"}`;
 
   bot.sendMessage(chatId, message, {
     parse_mode: "Markdown",
@@ -393,7 +405,8 @@ bot.on("callback_query", async (callbackQuery) => {
     for (const agentAddress of agents) {
       const settings = agentSettings.get(agentAddress);
       message += `*Agent:* \`${agentAddress}\`\n`;
-      message += `├ Threshold: ${formatWeiToEth(settings.valueThreshold)} ETH\n`;
+      message += `├ Value Threshold: ${formatWeiValue(settings.valueThreshold)} ETH\n`;
+      message += `├ Gas Threshold: ${formatWeiValue(settings.gasThreshold, "gwei")} Gwei\n`;
       message += `└ 2FA: ${settings.isSetup2FA ? "✅" : "❌"}\n\n`;
 
       inlineKeyboard.push([
@@ -439,6 +452,36 @@ bot.on("callback_query", async (callbackQuery) => {
         await bot.sendMessage(
           chatId,
           `✅ Value threshold updated to ${displayValue} ETH`
+        );
+        sendConfigMenu(chatId, agentAddress);
+      } catch (error) {
+        await bot.sendMessage(chatId, `❌ ${error.message}`);
+        sendConfigMenu(chatId, agentAddress);
+      }
+    });
+  } else if (data.startsWith("gas_")) {
+    const agentAddress = data.split("_")[1];
+    await bot.sendMessage(
+      chatId,
+      "Enter new gas threshold in Gwei (e.g., 50, 100):"
+    );
+
+    bot.once("message", async (msg) => {
+      if (msg.chat.id !== chatId) return;
+
+      try {
+        const { weiValue, displayValue } = validateAndFormatThreshold(
+          msg.text,
+          "gwei"
+        );
+
+        const settings = agentSettings.get(agentAddress);
+        settings.gasThreshold = weiValue;
+        agentSettings.set(agentAddress, settings);
+
+        await bot.sendMessage(
+          chatId,
+          `✅ Gas threshold updated to ${displayValue} Gwei`
         );
         sendConfigMenu(chatId, agentAddress);
       } catch (error) {
@@ -604,20 +647,22 @@ app.post("/api/request-approval", async (req, res) => {
     ) {
       return res.status(400).json({
         error:
-          "Invalid transaction format. Required fields: value (in Wei), to, gasPrice",
+          "Invalid transaction format. Required fields: value (in Wei), to, gasPrice (in Wei)",
       });
     }
 
     const settings = agentSettings.get(agentAddress);
+    const valueExceeded = isExceedingThreshold(
+      transaction.value,
+      settings.valueThreshold
+    );
+    const gasExceeded = isExceedingThreshold(
+      transaction.gasPrice,
+      settings.gasThreshold
+    );
 
-    if (
-      isTransactionExceedingThreshold(
-        transaction.value,
-        settings.valueThreshold
-      )
-    ) {
+    if (valueExceeded || gasExceeded) {
       const approvalId = Date.now().toString();
-
       pendingApprovals.set(approvalId, {
         transaction,
         agentAddress,
@@ -625,34 +670,40 @@ app.post("/api/request-approval", async (req, res) => {
         timestamp: Date.now(),
       });
 
-      const valueInEth = formatWeiToEth(transaction.value);
-      const thresholdInEth = formatWeiToEth(settings.valueThreshold);
+      const valueInEth = formatWeiValue(transaction.value);
+      const thresholdInEth = formatWeiValue(settings.valueThreshold);
+      const gasInGwei = formatWeiValue(transaction.gasPrice, "gwei");
+      const gasThresholdGwei = formatWeiValue(settings.gasThreshold, "gwei");
 
-      await bot.sendMessage(
-        settings.telegramChatId,
-        `🚨 *High Value Transaction Detected!*
+      const message = `🚨 *High Risk Transaction Detected!*
 
 *AI Agent:* \`${agentAddress}\`
 
 *Transaction Details:*
 • To: \`${transaction.to}\`
-• Value: ${valueInEth} ETH
-• Gas: ${transaction.gasPrice} Gwei
-• Threshold: ${thresholdInEth} ETH
+• Value: ${valueInEth} ETH ${valueExceeded ? "⚠️" : ""}
+• Gas Price: ${gasInGwei} Gwei ${gasExceeded ? "⚠️" : ""}
 
-Do you approve this transaction?`,
-        {
-          parse_mode: "Markdown",
-          reply_markup: {
-            inline_keyboard: [
-              [
-                { text: "✅ Approve", callback_data: `approve_${approvalId}` },
-                { text: "❌ Reject", callback_data: `reject_${approvalId}` },
-              ],
+*Thresholds:*
+• Value: ${thresholdInEth} ETH
+• Gas: ${gasThresholdGwei} Gwei
+
+${valueExceeded ? "❗ Value exceeds threshold" : ""}
+${gasExceeded ? "⛽ Gas price exceeds threshold" : ""}
+
+Do you approve this transaction?`;
+
+      await bot.sendMessage(settings.telegramChatId, message, {
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: "✅ Approve", callback_data: `approve_${approvalId}` },
+              { text: "❌ Reject", callback_data: `reject_${approvalId}` },
             ],
-          },
-        }
-      );
+          ],
+        },
+      });
 
       return new Promise((resolve) => {
         const checkInterval = setInterval(() => {
