@@ -18,6 +18,7 @@ const {
   getUserAgentsFromChain,
   checkTransactionApproval,
 } = require("./contract");
+const winston = require("winston");
 
 const app = express();
 app.use(cors());
@@ -29,6 +30,27 @@ const provider = new ethers.AlchemyProvider(
   "sepolia",
   process.env.ALCHEMY_API_KEY
 );
+
+const logger = winston.createLogger({
+  level: "info",
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.printf(({ timestamp, level, message }) => {
+      return `[${timestamp}] ${level.toUpperCase()}: ${message}`;
+    })
+  ),
+  transports: [
+    new winston.transports.File({ filename: "error.log", level: "error" }),
+    new winston.transports.File({ filename: "combined.log" }),
+    new winston.transports.Console({
+      format: winston.format.combine(
+        winston.format.colorize(),
+        winston.format.simple()
+      ),
+    }),
+  ],
+});
+
 // TODO Data storage like Filecoin/Storacha/Nillio
 const agentSettings = new Map(); // Only for 2FA secrets
 const pendingApprovals = new Map();
@@ -75,6 +97,7 @@ Need help? Use /help for commands.`,
 
 bot.onText(/^\/register(?:\s+(.+))?$/, async (msg, match) => {
   const chatId = msg.chat.id;
+  logger.info(`Registration attempt from chat ID: ${chatId}`);
 
   try {
     if (!match || !match[1]) {
@@ -121,6 +144,9 @@ bot.onText(/^\/register(?:\s+(.+))?$/, async (msg, match) => {
 
     try {
       await registerAgentOnChain(agentAddress, ownerAddress, chatId, bot);
+      logger.info(
+        `Successfully registered agent ${agentAddress} for chat ID ${chatId}`
+      );
 
       agentSettings.set(agentAddress, {
         secret: null,
@@ -161,6 +187,9 @@ bot.onText(/^\/register(?:\s+(.+))?$/, async (msg, match) => {
         }
       );
     } catch (error) {
+      logger.error(
+        `Registration failed for agent ${agentAddress}: ${error.message}`
+      );
       console.error("Error during registration:", error);
       await bot.sendMessage(
         chatId,
@@ -371,6 +400,7 @@ Current Configuration:
 }
 
 async function setup2FA(chatId, agentAddress) {
+  logger.info(`2FA setup initiated for agent ${agentAddress}`);
   const secret = speakeasy.generateSecret({
     name: `AI Agent Monitor (${agentAddress})`,
   });
@@ -408,11 +438,13 @@ Once added, please enter the 6-digit code to verify setup:`,
     });
 
     if (verified) {
+      logger.info(`2FA setup successful for agent ${agentAddress}`);
       settings.isSetup2FA = true;
       agentSettings.set(agentAddress, settings);
       await bot.sendMessage(chatId, "✅ 2FA setup successful!");
       sendConfigMenu(chatId, agentAddress);
     } else {
+      logger.warn(`2FA setup failed for agent ${agentAddress}: Invalid code`);
       await bot.sendMessage(chatId, "❌ Invalid code. Please try setup again.");
       settings.secret = null;
       agentSettings.set(agentAddress, settings);
@@ -601,6 +633,7 @@ bot.on("callback_query", async (callbackQuery) => {
     const approval = pendingApprovals.get(approvalId);
 
     if (!approval) {
+      logger.warn(`Attempted to process non-existent approval: ${approvalId}`);
       await bot.sendMessage(
         chatId,
         "❌ This approval request has expired or was already processed.",
@@ -608,6 +641,10 @@ bot.on("callback_query", async (callbackQuery) => {
       );
       return;
     }
+
+    logger.info(
+      `Processing ${data.startsWith("approve_") ? "approval" : "rejection"} for request ${approvalId}`
+    );
 
     const settings = agentSettings.get(approval.agentAddress);
 
@@ -681,6 +718,8 @@ process.on("uncaughtException", (error) => {
 app.post("/api/request-approval", async (req, res) => {
   try {
     const { agentAddress, transaction } = req.body;
+    logger.info(`Approval request received for agent ${agentAddress}`);
+    logger.info(`Transaction details: ${JSON.stringify(transaction)}`);
 
     if (
       !transaction ||
@@ -702,6 +741,9 @@ app.post("/api/request-approval", async (req, res) => {
     if (needsApproval) {
       const onChainConfig = await getAgentConfigFromChain(agentAddress);
       const approvalId = Date.now().toString();
+      logger.info(
+        `Created approval request ${approvalId} for agent ${agentAddress}`
+      );
 
       pendingApprovals.set(approvalId, {
         transaction,
@@ -759,12 +801,16 @@ Do you approve this transaction?`;
           const approval = pendingApprovals.get(approvalId);
 
           if (Date.now() - approval.timestamp > 300000) {
+            logger.warn(`Approval request ${approvalId} timed out`);
             clearInterval(checkInterval);
             pendingApprovals.delete(approvalId);
             resolve(res.json({ approved: false, reason: "Approval timeout" }));
           }
 
           if (approval.status !== "pending") {
+            logger.info(
+              `Approval request ${approvalId} completed with status: ${approval.status}`
+            );
             clearInterval(checkInterval);
             pendingApprovals.delete(approvalId);
             resolve(res.json({ approved: approval.status === "approved" }));
@@ -776,6 +822,7 @@ Do you approve this transaction?`;
     return res.json({ approved: true });
   } catch (error) {
     console.error("Error processing approval request:", error);
+    logger.error(`Error processing approval request: ${error.message}`);
     return res.status(500).json({
       error: "Internal server error",
       details: error.message,
@@ -785,6 +832,8 @@ Do you approve this transaction?`;
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
+  logger.info(`Server started on port ${PORT}`);
+  logger.info("Bot initialized and ready to handle requests");
   console.log(`Server running on port ${PORT}`);
 });
 
