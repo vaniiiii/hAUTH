@@ -9,7 +9,8 @@
     "express": "^4.21.1",
     "node-telegram-bot-api": "^0.66.0",
     "qrcode": "^1.5.4",
-    "speakeasy": "^2.0.0"
+    "speakeasy": "^2.0.0",
+    "winston": "^3.17.0"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
