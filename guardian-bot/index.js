@@ -17,6 +17,7 @@ const {
   getAgentConfigFromChain,
   getUserAgentsFromChain,
   checkTransactionApproval,
+  deactivateAgentOnChain,
 } = require("./contract");
 const winston = require("winston");
 
@@ -619,10 +620,19 @@ bot.on("callback_query", async (callbackQuery) => {
       if (msg.chat.id !== chatId) return;
 
       if (msg.text === "DELETE") {
-        agentSettings.delete(agentAddress);
-        userAgents.get(chatId).delete(agentAddress);
-
-        await bot.sendMessage(chatId, "✅ AI agent deleted successfully");
+        try {
+          await deactivateAgentOnChain(agentAddress, chatId, bot);
+          agentSettings.delete(agentAddress);
+          userAgents.get(chatId).delete(agentAddress);
+          await bot.sendMessage(chatId, "✅ AI agent deleted successfully");
+        } catch (error) {
+          console.error("Error deleting agent:", error);
+          await bot.sendMessage(
+            chatId,
+            "❌ Error deleting agent. Please try again."
+          );
+          sendConfigMenu(chatId, agentAddress);
+        }
       } else {
         await bot.sendMessage(chatId, "❌ Deletion cancelled");
         sendConfigMenu(chatId, agentAddress);
