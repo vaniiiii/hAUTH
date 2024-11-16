@@ -647,7 +647,8 @@ bot.on("callback_query", async (callbackQuery) => {
         sendConfigMenu(chatId, agentAddress);
       }
     });
-  } else if (data.startsWith("approve_") || data.startsWith("reject_")) {
+  } // In the bot's callback query handler, modify the 2FA verification part:
+  else if (data.startsWith("approve_") || data.startsWith("reject_")) {
     const approvalId = data.split("_")[1];
     const approval = pendingApprovals.get(approvalId);
 
@@ -667,7 +668,7 @@ bot.on("callback_query", async (callbackQuery) => {
 
     const settings = agentSettings.get(approval.agentAddress);
 
-    if (settings.isSetup2FA) {
+    if (settings?.isSetup2FA) {
       await bot.sendMessage(
         chatId,
         "*🔐 2FA Required*\n\nPlease enter your 6-digit authentication code:",
@@ -688,6 +689,7 @@ bot.on("callback_query", async (callbackQuery) => {
           approval.status = data.startsWith("approve_")
             ? "approved"
             : "rejected";
+          approval.used2FA = true; // Track that 2FA was used
           pendingApprovals.set(approvalId, approval);
 
           await bot.sendMessage(
@@ -704,11 +706,13 @@ bot.on("callback_query", async (callbackQuery) => {
             { parse_mode: "Markdown" }
           );
           approval.status = "rejected";
+          approval.used2FA = false;
           pendingApprovals.set(approvalId, approval);
         }
       });
     } else {
       approval.status = data.startsWith("approve_") ? "approved" : "rejected";
+      approval.used2FA = false; // Track that 2FA wasn't used
       pendingApprovals.set(approvalId, approval);
 
       await bot.sendMessage(
@@ -757,36 +761,48 @@ app.post("/api/request-approval", async (req, res) => {
       transaction.gasPrice
     );
 
-    if (needsApproval) {
-      const onChainConfig = await getAgentConfigFromChain(agentAddress);
-      const approvalId = Date.now().toString();
-      logger.info(
-        `Created approval request ${approvalId} for agent ${agentAddress}`
-      );
-
-      pendingApprovals.set(approvalId, {
-        transaction,
-        agentAddress,
-        status: "pending",
-        timestamp: Date.now(),
+    // If no approval needed, return early with 2FA status
+    if (!needsApproval) {
+      return res.json({
+        approved: true,
+        used2FA: false,
+        required2FA: false,
       });
+    }
 
-      const valueInEth = ethers.formatEther(transaction.value);
-      const thresholdInEth = ethers.formatEther(onChainConfig.valueThreshold);
-      const gasInGwei = ethers.formatUnits(transaction.gasPrice, "gwei");
-      const gasThresholdGwei = ethers.formatUnits(
-        onChainConfig.gasThreshold,
-        "gwei"
-      );
+    const onChainConfig = await getAgentConfigFromChain(agentAddress);
+    const settings = agentSettings.get(agentAddress);
+    const has2FAEnabled = settings?.isSetup2FA || false;
 
-      // Calculate if thresholds are exceeded
-      const valueExceeded =
-        BigInt(transaction.value) > BigInt(onChainConfig.valueThreshold);
-      const gasExceeded =
-        BigInt(transaction.gasPrice) > BigInt(onChainConfig.gasThreshold);
+    const approvalId = Date.now().toString();
+    logger.info(
+      `Created approval request ${approvalId} for agent ${agentAddress}`
+    );
 
-      const message = `🚨 *High Risk Transaction Detected!*
+    pendingApprovals.set(approvalId, {
+      transaction,
+      agentAddress,
+      status: "pending",
+      timestamp: Date.now(),
+      used2FA: false, // Track if 2FA was used in approval
+    });
 
+    // Rest of your existing message construction code...
+    const valueInEth = ethers.formatEther(transaction.value);
+    const thresholdInEth = ethers.formatEther(onChainConfig.valueThreshold);
+    const gasInGwei = ethers.formatUnits(transaction.gasPrice, "gwei");
+    const gasThresholdGwei = ethers.formatUnits(
+      onChainConfig.gasThreshold,
+      "gwei"
+    );
+
+    const valueExceeded =
+      BigInt(transaction.value) > BigInt(onChainConfig.valueThreshold);
+    const gasExceeded =
+      BigInt(transaction.gasPrice) > BigInt(onChainConfig.gasThreshold);
+
+    const message = `🚨 *High Risk Transaction Detected!*
+    
 *AI Agent:* \`${agentAddress}\`
 
 *Transaction Details:*
@@ -800,45 +816,56 @@ app.post("/api/request-approval", async (req, res) => {
 
 ${valueExceeded ? "❗ Value exceeds threshold" : ""}
 ${gasExceeded ? "⛽ Gas price exceeds threshold" : ""}
+${has2FAEnabled ? "🔐 2FA Verification Required" : ""}
 
 Do you approve this transaction?`;
 
-      await bot.sendMessage(onChainConfig.metadata, message, {
-        parse_mode: "Markdown",
-        reply_markup: {
-          inline_keyboard: [
-            [
-              { text: "✅ Approve", callback_data: `approve_${approvalId}` },
-              { text: "❌ Reject", callback_data: `reject_${approvalId}` },
-            ],
+    await bot.sendMessage(onChainConfig.metadata, message, {
+      parse_mode: "Markdown",
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: "✅ Approve", callback_data: `approve_${approvalId}` },
+            { text: "❌ Reject", callback_data: `reject_${approvalId}` },
           ],
-        },
-      });
+        ],
+      },
+    });
 
-      return new Promise((resolve) => {
-        const checkInterval = setInterval(() => {
-          const approval = pendingApprovals.get(approvalId);
+    return new Promise((resolve) => {
+      const checkInterval = setInterval(() => {
+        const approval = pendingApprovals.get(approvalId);
 
-          if (Date.now() - approval.timestamp > 300000) {
-            logger.warn(`Approval request ${approvalId} timed out`);
-            clearInterval(checkInterval);
-            pendingApprovals.delete(approvalId);
-            resolve(res.json({ approved: false, reason: "Approval timeout" }));
-          }
+        if (Date.now() - approval.timestamp > 300000) {
+          logger.warn(`Approval request ${approvalId} timed out`);
+          clearInterval(checkInterval);
+          pendingApprovals.delete(approvalId);
+          resolve(
+            res.json({
+              approved: false,
+              used2FA: false,
+              required2FA: has2FAEnabled,
+              reason: "Approval timeout",
+            })
+          );
+        }
 
-          if (approval.status !== "pending") {
-            logger.info(
-              `Approval request ${approvalId} completed with status: ${approval.status}`
-            );
-            clearInterval(checkInterval);
-            pendingApprovals.delete(approvalId);
-            resolve(res.json({ approved: approval.status === "approved" }));
-          }
-        }, 1000);
-      });
-    }
-
-    return res.json({ approved: true });
+        if (approval.status !== "pending") {
+          logger.info(
+            `Approval request ${approvalId} completed with status: ${approval.status}`
+          );
+          clearInterval(checkInterval);
+          pendingApprovals.delete(approvalId);
+          resolve(
+            res.json({
+              approved: approval.status === "approved",
+              used2FA: approval.used2FA || false,
+              required2FA: has2FAEnabled,
+            })
+          );
+        }
+      }, 1000);
+    });
   } catch (error) {
     console.error("Error processing approval request:", error);
     logger.error(`Error processing approval request: ${error.message}`);
