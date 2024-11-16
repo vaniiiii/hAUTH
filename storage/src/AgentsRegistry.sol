@@ -24,7 +24,7 @@ pragma solidity ^0.8.20;
     ╚═╝░░╚═╝╚══════╝░╚═════╝░╚═╝╚═════╝░░░░╚═╝░░░╚═╝░░╚═╝░░░╚═╝░░░
     =====================================================================
     Version: 1.0.0
-    Description: Secure on-chain configuration storage for AI agents
+    Description: On-chain configuration storage for AI agents
 */
 
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
@@ -61,6 +61,16 @@ contract AgentsRegistry is Ownable2Step {
     error AgentNotRegistered();
     error InvalidThresholdValue();
     error AgentNotActive();
+
+    /**
+     * @dev Modifier to check if agent is active and registered
+     */
+    modifier onlyActiveAgent(address agentAddress) {
+        if (!agentConfigs[agentAddress].isActive) {
+            revert AgentNotRegistered();
+        }
+        _;
+    }
 
     constructor() Ownable(msg.sender) {}
 
@@ -99,11 +109,7 @@ contract AgentsRegistry is Ownable2Step {
         address agentAddress,
         uint256 newValueThreshold,
         uint256 newGasThreshold
-    ) external onlyOwner {
-        if (!agentConfigs[agentAddress].isActive) {
-            revert AgentNotRegistered();
-        }
-
+    ) external onlyOwner onlyActiveAgent(agentAddress) {
         if (newValueThreshold == 0 || newGasThreshold == 0) {
             revert InvalidThresholdValue();
         }
@@ -122,11 +128,10 @@ contract AgentsRegistry is Ownable2Step {
     /**
      * @dev Toggle 2FA status (only owner/relayer can call)
      */
-    function toggle2FA(address agentAddress, bool enabled) external onlyOwner {
-        if (!agentConfigs[agentAddress].isActive) {
-            revert AgentNotRegistered();
-        }
-
+    function toggle2FA(
+        address agentAddress,
+        bool enabled
+    ) external onlyOwner onlyActiveAgent(agentAddress) {
         agentConfigs[agentAddress].isSetup2FA = enabled;
         emit Agent2FAStatusChanged(agentAddress, enabled);
     }
@@ -137,11 +142,7 @@ contract AgentsRegistry is Ownable2Step {
     function updateMetadata(
         address agentAddress,
         string calldata metadata
-    ) external onlyOwner {
-        if (!agentConfigs[agentAddress].isActive) {
-            revert AgentNotRegistered();
-        }
-
+    ) external onlyOwner onlyActiveAgent(agentAddress) {
         agentConfigs[agentAddress].metadata = metadata;
         emit MetadataUpdated(agentAddress, metadata);
     }
@@ -149,11 +150,9 @@ contract AgentsRegistry is Ownable2Step {
     /**
      * @dev Deactivate an agent (only owner/relayer can call)
      */
-    function deactivateAgent(address agentAddress) external onlyOwner {
-        if (!agentConfigs[agentAddress].isActive) {
-            revert AgentNotRegistered();
-        }
-
+    function deactivateAgent(
+        address agentAddress
+    ) external onlyOwner onlyActiveAgent(agentAddress) {
         agentConfigs[agentAddress].isActive = false;
         emit AgentDeactivated(agentAddress);
     }
