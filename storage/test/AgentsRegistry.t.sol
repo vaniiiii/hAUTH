@@ -9,12 +9,17 @@ contract AgentsRegistryTest is Test {
     address public owner;
     address public user;
     address public agentAddress;
+    address public agentOwner;
 
     uint256 constant DEFAULT_VALUE_THRESHOLD = 1 ether;
     uint256 constant DEFAULT_GAS_THRESHOLD = 50 gwei;
     string constant DEFAULT_METADATA = "telegram:@agent1";
 
-    event AgentRegistered(address indexed agentAddress, string metadata);
+    event AgentRegistered(
+        address indexed agentAddress,
+        address indexed ownerAddress,
+        string metadata
+    );
     event AgentConfigUpdated(
         address indexed agentAddress,
         uint256 valueThreshold,
@@ -30,6 +35,7 @@ contract AgentsRegistryTest is Test {
         owner = makeAddr("owner");
         user = makeAddr("user");
         agentAddress = makeAddr("agent");
+        agentOwner = makeAddr("agentOwner");
 
         vm.startPrank(owner);
         registry = new AgentsRegistry();
@@ -39,15 +45,15 @@ contract AgentsRegistryTest is Test {
     // ============================================
     // Registration Tests
     // ============================================
-
     function test_RegisterAgent() public {
         vm.startPrank(owner);
 
         vm.expectEmit(true, true, false, true);
-        emit AgentRegistered(agentAddress, DEFAULT_METADATA);
+        emit AgentRegistered(agentAddress, agentOwner, DEFAULT_METADATA);
 
         registry.registerAgent(
             agentAddress,
+            agentOwner,
             DEFAULT_VALUE_THRESHOLD,
             DEFAULT_GAS_THRESHOLD,
             DEFAULT_METADATA
@@ -58,7 +64,8 @@ contract AgentsRegistryTest is Test {
             uint96 gasThreshold,
             bool isSetup2FA,
             bool isActive,
-            string memory metadata
+            string memory metadata,
+            address storedOwner
         ) = registry.agentConfigs(agentAddress);
 
         assertEq(valueThreshold, DEFAULT_VALUE_THRESHOLD);
@@ -66,6 +73,11 @@ contract AgentsRegistryTest is Test {
         assertFalse(isSetup2FA);
         assertTrue(isActive);
         assertEq(metadata, DEFAULT_METADATA);
+        assertEq(storedOwner, agentOwner);
+
+        address[] memory ownerAgents = registry.getUserAgents(agentOwner);
+        assertEq(ownerAgents.length, 1);
+        assertEq(ownerAgents[0], agentAddress);
 
         vm.stopPrank();
     }
@@ -78,6 +90,7 @@ contract AgentsRegistryTest is Test {
         );
         registry.registerAgent(
             agentAddress,
+            agentOwner,
             DEFAULT_VALUE_THRESHOLD,
             DEFAULT_GAS_THRESHOLD,
             DEFAULT_METADATA
@@ -91,6 +104,7 @@ contract AgentsRegistryTest is Test {
 
         registry.registerAgent(
             agentAddress,
+            agentOwner,
             DEFAULT_VALUE_THRESHOLD,
             DEFAULT_GAS_THRESHOLD,
             DEFAULT_METADATA
@@ -99,6 +113,7 @@ contract AgentsRegistryTest is Test {
         vm.expectRevert(AgentsRegistry.AgentAlreadyRegistered.selector);
         registry.registerAgent(
             agentAddress,
+            agentOwner,
             DEFAULT_VALUE_THRESHOLD,
             DEFAULT_GAS_THRESHOLD,
             DEFAULT_METADATA
@@ -113,6 +128,7 @@ contract AgentsRegistryTest is Test {
         vm.expectRevert(AgentsRegistry.InvalidThresholdValue.selector);
         registry.registerAgent(
             agentAddress,
+            agentOwner,
             0,
             DEFAULT_GAS_THRESHOLD,
             DEFAULT_METADATA
@@ -127,6 +143,7 @@ contract AgentsRegistryTest is Test {
         vm.expectRevert(AgentsRegistry.InvalidThresholdValue.selector);
         registry.registerAgent(
             agentAddress,
+            agentOwner,
             DEFAULT_VALUE_THRESHOLD,
             0,
             DEFAULT_METADATA
@@ -145,6 +162,7 @@ contract AgentsRegistryTest is Test {
 
         registry.registerAgent(
             agentAddress,
+            agentOwner,
             valueThreshold,
             gasThreshold,
             DEFAULT_METADATA
@@ -155,14 +173,15 @@ contract AgentsRegistryTest is Test {
             uint96 storedGasThreshold,
             ,
             ,
-
+            ,
+            address storedOwner
         ) = registry.agentConfigs(agentAddress);
         assertEq(storedValueThreshold, valueThreshold);
         assertEq(storedGasThreshold, gasThreshold);
+        assertEq(storedOwner, agentOwner);
 
         vm.stopPrank();
     }
-
     // ============================================
     // Update Threshold Tests
     // ============================================
@@ -172,6 +191,7 @@ contract AgentsRegistryTest is Test {
 
         registry.registerAgent(
             agentAddress,
+            agentOwner,
             DEFAULT_VALUE_THRESHOLD,
             DEFAULT_GAS_THRESHOLD,
             DEFAULT_METADATA
@@ -193,7 +213,7 @@ contract AgentsRegistryTest is Test {
             newGasThreshold
         );
 
-        (uint96 valueThreshold, uint96 gasThreshold, , , ) = registry
+        (uint96 valueThreshold, uint96 gasThreshold, , , , ) = registry
             .agentConfigs(agentAddress);
         assertEq(valueThreshold, newValueThreshold);
         assertEq(gasThreshold, newGasThreshold);
@@ -219,6 +239,7 @@ contract AgentsRegistryTest is Test {
 
         registry.registerAgent(
             agentAddress,
+            agentOwner,
             DEFAULT_VALUE_THRESHOLD,
             DEFAULT_GAS_THRESHOLD,
             DEFAULT_METADATA
@@ -232,16 +253,15 @@ contract AgentsRegistryTest is Test {
 
         vm.stopPrank();
     }
-
     // ============================================
     // 2FA Tests
     // ============================================
-
     function test_Toggle2FA() public {
         vm.startPrank(owner);
 
         registry.registerAgent(
             agentAddress,
+            agentOwner,
             DEFAULT_VALUE_THRESHOLD,
             DEFAULT_GAS_THRESHOLD,
             DEFAULT_METADATA
@@ -252,11 +272,11 @@ contract AgentsRegistryTest is Test {
 
         registry.toggle2FA(agentAddress, true);
 
-        (, , bool isSetup2FA, , ) = registry.agentConfigs(agentAddress);
+        (, , bool isSetup2FA, , , ) = registry.agentConfigs(agentAddress);
         assertTrue(isSetup2FA);
 
         registry.toggle2FA(agentAddress, false);
-        (, , isSetup2FA, , ) = registry.agentConfigs(agentAddress);
+        (, , isSetup2FA, , , ) = registry.agentConfigs(agentAddress);
         assertFalse(isSetup2FA);
 
         vm.stopPrank();
@@ -270,7 +290,6 @@ contract AgentsRegistryTest is Test {
 
         vm.stopPrank();
     }
-
     // ============================================
     // Metadata Tests
     // ============================================
@@ -280,6 +299,7 @@ contract AgentsRegistryTest is Test {
 
         registry.registerAgent(
             agentAddress,
+            agentOwner,
             DEFAULT_VALUE_THRESHOLD,
             DEFAULT_GAS_THRESHOLD,
             DEFAULT_METADATA
@@ -292,7 +312,9 @@ contract AgentsRegistryTest is Test {
 
         registry.updateMetadata(agentAddress, newMetadata);
 
-        (, , , , string memory metadata) = registry.agentConfigs(agentAddress);
+        (, , , , string memory metadata, ) = registry.agentConfigs(
+            agentAddress
+        );
         assertEq(metadata, newMetadata);
 
         vm.stopPrank();
@@ -306,7 +328,6 @@ contract AgentsRegistryTest is Test {
 
         vm.stopPrank();
     }
-
     // ============================================
     // Deactivation Tests
     // ============================================
@@ -316,6 +337,7 @@ contract AgentsRegistryTest is Test {
 
         registry.registerAgent(
             agentAddress,
+            agentOwner,
             DEFAULT_VALUE_THRESHOLD,
             DEFAULT_GAS_THRESHOLD,
             DEFAULT_METADATA
@@ -326,7 +348,7 @@ contract AgentsRegistryTest is Test {
 
         registry.deactivateAgent(agentAddress);
 
-        (, , , bool isActive, ) = registry.agentConfigs(agentAddress);
+        (, , , bool isActive, , ) = registry.agentConfigs(agentAddress);
         assertFalse(isActive);
 
         vm.stopPrank();
@@ -340,7 +362,6 @@ contract AgentsRegistryTest is Test {
 
         vm.stopPrank();
     }
-
     // ============================================
     // Transaction Approval Tests
     // ============================================
@@ -350,6 +371,7 @@ contract AgentsRegistryTest is Test {
 
         registry.registerAgent(
             agentAddress,
+            agentOwner,
             DEFAULT_VALUE_THRESHOLD,
             DEFAULT_GAS_THRESHOLD,
             DEFAULT_METADATA
@@ -396,6 +418,7 @@ contract AgentsRegistryTest is Test {
 
         registry.registerAgent(
             agentAddress,
+            agentOwner,
             DEFAULT_VALUE_THRESHOLD,
             DEFAULT_GAS_THRESHOLD,
             DEFAULT_METADATA
@@ -425,6 +448,7 @@ contract AgentsRegistryTest is Test {
 
         registry.registerAgent(
             agentAddress,
+            agentOwner,
             DEFAULT_VALUE_THRESHOLD,
             DEFAULT_GAS_THRESHOLD,
             DEFAULT_METADATA
@@ -450,6 +474,7 @@ contract AgentsRegistryTest is Test {
 
         registry.registerAgent(
             agentAddress,
+            agentOwner,
             valueThreshold,
             gasThreshold,
             DEFAULT_METADATA
@@ -467,7 +492,6 @@ contract AgentsRegistryTest is Test {
 
         vm.stopPrank();
     }
-
     // ============================================
     // Access Control Tests
     // ============================================
@@ -476,6 +500,7 @@ contract AgentsRegistryTest is Test {
         vm.startPrank(owner);
         registry.registerAgent(
             agentAddress,
+            agentOwner,
             DEFAULT_VALUE_THRESHOLD,
             DEFAULT_GAS_THRESHOLD,
             DEFAULT_METADATA

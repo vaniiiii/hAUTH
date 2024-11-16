@@ -40,13 +40,21 @@ contract AgentsRegistry is Ownable2Step {
         bool isSetup2FA; // Whether 2FA is enabled
         bool isActive; // Whether agent is active
         string metadata; // Optional metadata (e.g., Telegram username)
+        address owner; // Agent owner address
     }
 
     // Mapping from agent address to its configuration
     mapping(address => AgentConfig) public agentConfigs;
 
+    // Mapping from user address to their agents
+    mapping(address => address[]) public userAgents;
+
     // Events
-    event AgentRegistered(address indexed agentAddress, string metadata);
+    event AgentRegistered(
+        address indexed agentAddress,
+        address indexed ownerAddress,
+        string metadata
+    );
     event AgentConfigUpdated(
         address indexed agentAddress,
         uint256 valueThreshold,
@@ -79,6 +87,7 @@ contract AgentsRegistry is Ownable2Step {
      */
     function registerAgent(
         address agentAddress,
+        address ownerAddress,
         uint256 valueThreshold,
         uint256 gasThreshold,
         string calldata metadata
@@ -96,10 +105,12 @@ contract AgentsRegistry is Ownable2Step {
             gasThreshold: uint96(gasThreshold),
             isSetup2FA: false,
             isActive: true,
-            metadata: metadata
+            metadata: metadata,
+            owner: ownerAddress
         });
 
-        emit AgentRegistered(agentAddress, metadata);
+        userAgents[ownerAddress].push(agentAddress);
+        emit AgentRegistered(agentAddress, ownerAddress, metadata);
     }
 
     /**
@@ -154,7 +165,6 @@ contract AgentsRegistry is Ownable2Step {
         address agentAddress
     ) external onlyOwner onlyActiveAgent(agentAddress) {
         emit AgentDeactivated(agentAddress);
-
         delete agentConfigs[agentAddress];
     }
 
@@ -175,5 +185,14 @@ contract AgentsRegistry is Ownable2Step {
         needsApproval = (value > config.valueThreshold ||
             gasPrice > config.gasThreshold);
         needs2FA = config.isSetup2FA;
+    }
+
+    /**
+     * @dev Returns all agents for specific address
+     */
+    function getUserAgents(
+        address userAddress
+    ) external view returns (address[] memory) {
+        return userAgents[userAddress];
     }
 }
