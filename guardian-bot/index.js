@@ -252,6 +252,13 @@ bot.onText(/\/agents/, async (msg) => {
     { text: "➕ Register New Agent", callback_data: "register_new" },
   ]);
 
+  inlineKeyboard.push([
+    {
+      text: "🤖 View My Agents Metrics In Mini App",
+      web_app: { url: "https://google.com" },
+    },
+  ]);
+
   bot.sendMessage(chatId, message, {
     parse_mode: "Markdown",
     reply_markup: {
