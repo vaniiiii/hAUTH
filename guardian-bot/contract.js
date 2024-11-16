@@ -141,6 +141,25 @@ const toggle2FAOnChain = async (agentAddress, enabled, telegramChatId, bot) => {
   }
 };
 
+const deactivateAgentOnChain = async (agentAddress, telegramChatId, bot) => {
+  try {
+    const tx = await agentsRegistry.deactivateAgent(agentAddress);
+    return await handleTransactionWithStatus(
+      bot,
+      telegramChatId,
+      tx,
+      "Agent Deactivation"
+    );
+  } catch (error) {
+    await bot.sendMessage(
+      telegramChatId,
+      `❌ *Agent Deactivation Failed*\n\nError: ${error.message}\n\nPlease try again.`,
+      { parse_mode: "Markdown" }
+    );
+    throw error;
+  }
+};
+
 async function getAgentConfigFromChain(agentAddress) {
   try {
     const config = await agentsRegistry.agentConfigs(agentAddress);
@@ -186,6 +205,7 @@ module.exports = {
   registerAgentOnChain,
   updateThresholdsOnChain,
   toggle2FAOnChain,
+  deactivateAgentOnChain,
   getAgentConfigFromChain,
   getUserAgentsFromChain,
   checkTransactionApproval,
