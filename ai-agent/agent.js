@@ -3,21 +3,48 @@ const { ethers } = require("ethers");
 
 const APPROVAL_SERVER = "http://localhost:3000";
 const AGENT_ADDRESS = "0x6B1dca08155232943ca69FA726a8A1C76f4Ebb8C";
-const VALUE_THRESHOLD = 0.001;
-const TEST_VALUES = [0.0005, 0.002, 0.003, 0.0008, 0.004];
+
+// Thresholds - bot should be configured with these values:
+// Value threshold: 1.0 ETH
+// Gas threshold: 50 Gwei
+
+// Test values (70% within limits, 30% exceeding)
+const TEST_SCENARIOS = [
+  // Within limits (70%)
+  { value: "0.5", gasMultiplier: 0.8 }, // 0.5 ETH, 80% of current gas
+  { value: "0.75", gasMultiplier: 0.9 }, // 0.75 ETH, 90% of current gas
+  { value: "0.3", gasMultiplier: 0.7 }, // 0.3 ETH, 70% of current gas
+  { value: "0.8", gasMultiplier: 0.85 }, // 0.8 ETH, 85% of current gas
+  { value: "0.6", gasMultiplier: 0.95 }, // 0.6 ETH, 95% of current gas
+  { value: "0.4", gasMultiplier: 0.75 }, // 0.4 ETH, 75% of current gas
+  { value: "0.9", gasMultiplier: 0.88 }, // 0.9 ETH, 88% of current gas
+
+  // Exceeding limits (30%)
+  { value: "1.2", gasMultiplier: 0.9 }, // High value, normal gas
+  { value: "0.5", gasMultiplier: 1.2 }, // Normal value, high gas
+  { value: "1.5", gasMultiplier: 1.3 }, // Both high
+];
+
+let currentScenarioIndex = 0;
 
 const provider = new ethers.JsonRpcProvider(
   "https://base-sepolia-rpc.publicnode.com"
 );
-const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
-let currentValueIndex = 0;
 
-function aiDecisionLogic() {
-  const value = TEST_VALUES[currentValueIndex];
-  currentValueIndex = (currentValueIndex + 1) % TEST_VALUES.length;
+function aiDecisionLogic(currentGasPrice) {
+  const scenario = TEST_SCENARIOS[currentScenarioIndex];
+  currentScenarioIndex = (currentScenarioIndex + 1) % TEST_SCENARIOS.length;
+
+  const adjustedGasPrice = (
+    (BigInt(currentGasPrice) *
+      BigInt(Math.floor(scenario.gasMultiplier * 100))) /
+    BigInt(100)
+  ).toString();
+
   return {
     shouldSend: true,
-    value: value.toFixed(6),
+    value: scenario.value,
+    gasPrice: adjustedGasPrice,
   };
 }
 
@@ -33,12 +60,11 @@ async function requestApproval(transaction) {
         agentAddress: AGENT_ADDRESS,
         transaction: {
           to: transaction.to,
-          value: transaction.value,
-          gasPrice: transaction.gasPrice,
+          value: transaction.value.toString(),
+          gasPrice: transaction.gasPrice.toString(),
         },
       }),
     });
-
     const result = await response.json();
     console.log("Server response:", result);
     return result.approved;
@@ -49,77 +75,66 @@ async function requestApproval(transaction) {
 }
 
 async function sendTransaction() {
-  const decision = aiDecisionLogic();
-
   try {
     const feeData = await provider.getFeeData();
+    const baseGasPrice = feeData.gasPrice;
+
+    const decision = aiDecisionLogic(baseGasPrice);
+    const valueInWei = ethers.parseEther(decision.value);
 
     const transaction = {
       to: "0xRecipientAddress",
-      value: ethers.parseEther(decision.value.toString()),
-      gasPrice: feeData.gasPrice,
+      value: valueInWei,
+      gasPrice: BigInt(decision.gasPrice),
     };
 
     console.log(`\n🤖 AI preparing transaction...`);
     console.log(`💰 Value: ${decision.value} ETH`);
     console.log(
-      `⛽ Gas Price: ${ethers.formatUnits(feeData.gasPrice, "gwei")} Gwei`
+      `⛽ Gas Price: ${ethers.formatUnits(transaction.gasPrice, "gwei")} Gwei`
     );
-    console.log(`🔒 Threshold: ${VALUE_THRESHOLD} ETH`);
+    console.log(
+      `📊 Base Gas Price: ${ethers.formatUnits(baseGasPrice, "gwei")} Gwei`
+    );
 
-    if (parseFloat(decision.value) > VALUE_THRESHOLD) {
-      console.log(
-        `\n🔐 Transaction requires approval (> ${VALUE_THRESHOLD} ETH)`
-      );
+    const approved = await requestApproval(transaction);
 
-      const approved = await requestApproval({
-        to: transaction.to,
-        value: decision.value,
-        gasPrice: ethers.formatUnits(feeData.gasPrice, "gwei"),
-      });
-
-      if (!approved) {
-        console.log("❌ Transaction rejected by user");
-        return;
-      }
-      console.log("✅ Transaction approved by user");
+    if (approved) {
+      console.log("✅ Transaction approved - would proceed with sending");
     } else {
-      console.log(`\n✨ Transaction below threshold, no approval needed`);
+      console.log("❌ Transaction rejected or approval not required");
     }
-
-    console.log("\n🔄 Simulating transaction (not actually sending)...");
-    console.log(`📋 Would send transaction with value: ${decision.value} ETH`);
   } catch (error) {
     console.error("❌ Transaction failed:", error.message);
   }
 }
 
 async function startAgent() {
-  console.log("🤖 AI Agent starting...");
-  console.log(`📍 Agent address: ${AGENT_ADDRESS}`);
-  console.log(`🔒 Value threshold: ${VALUE_THRESHOLD} ETH`);
-  console.log(`🔄 Will test with values:`, TEST_VALUES);
+  console.log("\n🤖 AI Agent Test Suite Starting...");
+  console.log("\n⚠️ IMPORTANT: Configure bot with these thresholds:");
+  console.log("• Value Threshold: 1.0 ETH");
+  console.log("• Gas Threshold: 50 Gwei");
+
+  console.log("\n📊 Test Scenarios:");
+  console.log("• 70% of transactions within limits");
+  console.log("• 30% of transactions exceeding limits");
 
   await sendTransaction();
-
   setInterval(async () => {
     await sendTransaction();
-  }, 20000); // 20 Seconds
+  }, 20000);
 }
 
 process.on("unhandledRejection", (error) => {
   console.error("Unhandled promise rejection:", error);
 });
 
-function getTimestamp() {
-  return new Date().toLocaleTimeString();
-}
-
 (async () => {
   try {
-    console.log(`\n[${getTimestamp()}] Starting AI Agent...`);
+    console.log(
+      `\n[${new Date().toLocaleTimeString()}] Starting AI Agent Test Suite...`
+    );
     await startAgent();
-    console.log(`[${getTimestamp()}] Agent running with 20-second intervals`);
   } catch (error) {
     console.error("Failed to start agent:", error);
   }
