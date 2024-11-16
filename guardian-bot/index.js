@@ -107,7 +107,7 @@ bot.onText(/^\/register(?:\s+(.+))?$/, async (msg, match) => {
           "Provide agent and owner addresses using the format:\n" +
           "`/register <agent_address> <owner_address>`\n\n" +
           "*Example:*\n" +
-          "`/register 0x742d35Cc6634C0532925a3b844Bc454e4438f44e 0x123...`\n\n" +
+          "`/register 0x742d35Cc6634C0532925a3b844Bc454e4438f44e 0xd8da6bf26964af9d7eed9e03e53415d37aa96045`\n\n" +
           "*Requirements:*\n" +
           "• Valid Ethereum addresses\n" +
           "• One registration per agent\n" +
