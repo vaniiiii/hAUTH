@@ -17,6 +17,11 @@ app.use(express.json());
 
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 
+// Initialize ethers provider (you can use Infura, Alchemy, or any other provider)
+const provider = new ethers.AlchemyProvider(
+  "sepolia",
+  process.env.ALCHEMY_API_KEY
+);
 // TODO Data storage like Filecoin/Storacha/Nillio
 const agentSettings = new Map();
 const pendingApprovals = new Map();
@@ -85,14 +90,33 @@ bot.onText(/^\/register(?:\s+(.+))?$/, async (msg, match) => {
       return;
     }
 
-    const agentAddress = match[1].trim();
+    let agentAddress = match[1].trim();
+
+    /* Resolve ENS name to Ethereum address */
+    if (agentAddress.endsWith(".eth")) {
+      try {
+        agentAddress = await provider.resolveName(agentAddress);
+        if (!agentAddress) {
+          throw new Error("Invalid ENS name");
+        }
+      } catch (error) {
+        await bot.sendMessage(
+          chatId,
+          "Invalid ENS name. Please provide a valid ENS name or Ethereum address."
+        );
+        return;
+      }
+    }
 
     if (!ethers.isAddress(agentAddress)) {
       await bot.sendMessage(
         chatId,
         "*Error:* Invalid Ethereum address\n\n" +
           "Please provide a valid address like:\n" +
-          "`0x742d35Cc6634C0532925a3b844Bc454e4438f44e`",
+          "0x742d35Cc6634C0532925a3b844Bc454e4438f44e\n\n" +
+          "or\n\n" +
+          "ENS name like:\n" +
+          "myagent.eth",
         {
           parse_mode: "Markdown",
           disable_web_page_preview: true,
@@ -216,7 +240,9 @@ bot.onText(/\/agents/, async (msg) => {
 
     inlineKeyboard.push([
       {
-        text: `⚙️ Configure ${agentAddress.slice(0, 6)}...${agentAddress.slice(-4)}`,
+        text: `⚙️ Configure ${agentAddress.slice(0, 6)}...${agentAddress.slice(
+          -4
+        )}`,
         callback_data: `config_${agentAddress}`,
       },
     ]);
@@ -405,13 +431,21 @@ bot.on("callback_query", async (callbackQuery) => {
     for (const agentAddress of agents) {
       const settings = agentSettings.get(agentAddress);
       message += `*Agent:* \`${agentAddress}\`\n`;
-      message += `├ Value Threshold: ${formatWeiValue(settings.valueThreshold)} ETH\n`;
-      message += `├ Gas Threshold: ${formatWeiValue(settings.gasThreshold, "gwei")} Gwei\n`;
+      message += `├ Value Threshold: ${formatWeiValue(
+        settings.valueThreshold
+      )} ETH\n`;
+      message += `├ Gas Threshold: ${formatWeiValue(
+        settings.gasThreshold,
+        "gwei"
+      )} Gwei\n`;
       message += `└ 2FA: ${settings.isSetup2FA ? "✅" : "❌"}\n\n`;
 
       inlineKeyboard.push([
         {
-          text: `⚙️ Configure ${agentAddress.slice(0, 6)}...${agentAddress.slice(-4)}`,
+          text: `⚙️ Configure ${agentAddress.slice(
+            0,
+            6
+          )}...${agentAddress.slice(-4)}`,
           callback_data: `config_${agentAddress}`,
         },
       ]);
