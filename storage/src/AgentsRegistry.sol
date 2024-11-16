@@ -153,8 +153,9 @@ contract AgentsRegistry is Ownable2Step {
     function deactivateAgent(
         address agentAddress
     ) external onlyOwner onlyActiveAgent(agentAddress) {
-        agentConfigs[agentAddress].isActive = false;
         emit AgentDeactivated(agentAddress);
+
+        delete agentConfigs[agentAddress];
     }
 
     /**
