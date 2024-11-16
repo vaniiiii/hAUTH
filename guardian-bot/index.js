@@ -5,6 +5,7 @@ const speakeasy = require("speakeasy");
 const qrcode = require("qrcode");
 const cors = require("cors");
 const ethers = require("ethers");
+const { validateAndFormatThreshold, formatWeiToEth } = require("./utils");
 
 const app = express();
 app.use(cors());
@@ -18,7 +19,7 @@ const pendingApprovals = new Map();
 const userAgents = new Map();
 
 const defaultSettings = {
-  valueThreshold: 0.00001, // ETH
+  valueThreshold: "10000000000000",
   isSetup2FA: false,
   secret: null,
   telegramChatId: null,
@@ -317,7 +318,7 @@ function sendConfigMenu(chatId, agentAddress) {
 Address: \`${agentAddress}\`
 
 Current Configuration:
-• Value Threshold: ${settings.valueThreshold} ETH
+• Value Threshold: ${formatWeiToEth(settings.valueThreshold)} ETH
 • 2FA Enabled: ${settings.isSetup2FA ? "✅" : "❌"}`;
 
   bot.sendMessage(chatId, message, {
@@ -392,7 +393,7 @@ bot.on("callback_query", async (callbackQuery) => {
     for (const agentAddress of agents) {
       const settings = agentSettings.get(agentAddress);
       message += `*Agent:* \`${agentAddress}\`\n`;
-      message += `├ Threshold: ${settings.valueThreshold} ETH\n`;
+      message += `├ Threshold: ${formatWeiToEth(settings.valueThreshold)} ETH\n`;
       message += `└ 2FA: ${settings.isSetup2FA ? "✅" : "❌"}\n\n`;
 
       inlineKeyboard.push([
@@ -422,30 +423,28 @@ bot.on("callback_query", async (callbackQuery) => {
     const agentAddress = data.split("_")[1];
     await bot.sendMessage(
       chatId,
-      "Enter new value threshold in ETH (e.g., 0.01):"
+      "Enter new value threshold in ETH (e.g., 0.01, 1, 10):"
     );
 
     bot.once("message", async (msg) => {
       if (msg.chat.id !== chatId) return;
 
-      const value = parseFloat(msg.text);
-      if (isNaN(value) || value <= 0) {
+      try {
+        const { weiValue, displayValue } = validateAndFormatThreshold(msg.text);
+
+        const settings = agentSettings.get(agentAddress);
+        settings.valueThreshold = weiValue;
+        agentSettings.set(agentAddress, settings);
+
         await bot.sendMessage(
           chatId,
-          "❌ Invalid value. Please enter a positive number."
+          `✅ Value threshold updated to ${displayValue} ETH`
         );
-        return;
+        sendConfigMenu(chatId, agentAddress);
+      } catch (error) {
+        await bot.sendMessage(chatId, `❌ ${error.message}`);
+        sendConfigMenu(chatId, agentAddress);
       }
-
-      const settings = agentSettings.get(agentAddress);
-      settings.valueThreshold = value;
-      agentSettings.set(agentAddress, settings);
-
-      await bot.sendMessage(
-        chatId,
-        `✅ Value threshold updated to ${value} ETH`
-      );
-      sendConfigMenu(chatId, agentAddress);
     });
   } else if (data === "register_new") {
     await bot.sendMessage(
@@ -597,10 +596,26 @@ app.post("/api/request-approval", async (req, res) => {
       return res.status(400).json({ error: "Agent not registered" });
     }
 
-    const settings = agentSettings.get(agentAddress);
-    const txValueInETH = parseFloat(transaction.value);
+    if (
+      !transaction ||
+      !transaction.value ||
+      !transaction.to ||
+      !transaction.gasPrice
+    ) {
+      return res.status(400).json({
+        error:
+          "Invalid transaction format. Required fields: value (in Wei), to, gasPrice",
+      });
+    }
 
-    if (txValueInETH > settings.valueThreshold) {
+    const settings = agentSettings.get(agentAddress);
+
+    if (
+      isTransactionExceedingThreshold(
+        transaction.value,
+        settings.valueThreshold
+      )
+    ) {
       const approvalId = Date.now().toString();
 
       pendingApprovals.set(approvalId, {
@@ -610,6 +625,9 @@ app.post("/api/request-approval", async (req, res) => {
         timestamp: Date.now(),
       });
 
+      const valueInEth = formatWeiToEth(transaction.value);
+      const thresholdInEth = formatWeiToEth(settings.valueThreshold);
+
       await bot.sendMessage(
         settings.telegramChatId,
         `🚨 *High Value Transaction Detected!*
@@ -618,8 +636,9 @@ app.post("/api/request-approval", async (req, res) => {
 
 *Transaction Details:*
 • To: \`${transaction.to}\`
-• Value: ${txValueInETH} ETH
+• Value: ${valueInEth} ETH
 • Gas: ${transaction.gasPrice} Gwei
+• Threshold: ${thresholdInEth} ETH
 
 Do you approve this transaction?`,
         {
@@ -657,7 +676,10 @@ Do you approve this transaction?`,
     return res.json({ approved: true });
   } catch (error) {
     console.error("Error processing approval request:", error);
-    return res.status(500).json({ error: "Internal server error" });
+    return res.status(500).json({
+      error: "Internal server error",
+      details: error.message,
+    });
   }
 });
 
