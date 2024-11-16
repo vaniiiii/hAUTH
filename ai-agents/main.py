@@ -182,6 +182,91 @@ class BalanceOperation(Operation):
             print(f"{Fore.RED}Execution error: {str(e)}{Style.RESET_ALL}")
             raise
 
+class FusionOperation(Operation):
+    def __init__(self, blockchain_network: BlockchainNetwork, transaction_history: list):
+        super().__init__(blockchain_network)
+        self.account = Account.from_key(os.getenv('PRIVATE_KEY'))
+        self.transaction_history = transaction_history 
+
+    def validate(self, amount: float) -> bool:
+        try:
+            if amount <= 0:
+                print(f"{Fore.YELLOW}Invalid amount{Style.RESET_ALL}")
+                return False
+                
+            # Check USDC balance
+            usdc_address = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"  # BASE USDC
+            usdc_contract = self.w3.eth.contract(
+                address=self.w3.to_checksum_address(usdc_address),
+                abi=[{
+                    "constant": True,
+                    "inputs": [{"name": "_owner", "type": "address"}],
+                    "name": "balanceOf",
+                    "outputs": [{"name": "balance", "type": "uint256"}],
+                    "type": "function"
+                }]
+            )
+            
+            balance = usdc_contract.functions.balanceOf(self.account.address).call()
+            required = int(amount * 1e6)  # USDC has 6 decimals
+            
+            if balance < required:
+                print(f"{Fore.YELLOW}Insufficient USDC balance{Style.RESET_ALL}")
+                print(f"Required: {amount} USDC")
+                print(f"Available: {balance / 1e6} USDC")
+                return False
+                
+            return True
+        except Exception as e:
+            print(f"{Fore.RED}Validation error: {str(e)}{Style.RESET_ALL}")
+            return False
+
+    def execute(self, amount: float):
+        try:
+            print(f"\n{Fore.CYAN}Initiating Fusion+ swap...{Style.RESET_ALL}")
+            print(f"From: Base USDC")
+            print(f"To: Arbitrum USDC")
+            print(f"Amount: {amount} USDC\n")
+            
+            with tqdm(total=100, desc="Processing", bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt}') as pbar:
+                # Call the Node.js service
+                response = requests.post(
+                    'http://localhost:3001/fusion-swap',
+                    json={"amount": str(amount)}
+                )
+                
+                pbar.update(50)
+                
+                if response.status_code != 200:
+                    raise Exception(f"Fusion swap failed: {response.json().get('error')}")
+                    
+                result = response.json()
+                pbar.update(50)
+                
+                # Add to transaction history
+                self.transaction_history.append({
+                    'hash': result['orderHash'],
+                    'type': 'Fusion+ Swap',
+                    'amount': amount,
+                    'from': 'Base USDC',
+                    'to': 'Arbitrum USDC',
+                    'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    'status': 'pending'
+                })
+                
+                print(f"\n{Fore.GREEN}Fusion+ swap initiated successfully!{Style.RESET_ALL}")
+                print(f"Order hash: {Fore.YELLOW}{result['orderHash']}{Style.RESET_ALL}")
+                print(f"\n{Fore.CYAN}Status:{Style.RESET_ALL}")
+                print("• The swap will be processed automatically via Fusion+")
+                print("• This process can take several minutes")
+                print("• You can check the status in transaction history")
+                print(f"• Track on 1inch: https://fusion.1inch.io/history")
+                
+                return result
+                
+        except Exception as e:
+            print(f"{Fore.RED}Fusion execution error: {str(e)}{Style.RESET_ALL}")
+            raise
 class BlockchainAgent:
     def __init__(self, model: str = "gpt-4-1106-preview"):
         self._print_welcome_banner()
@@ -205,18 +290,21 @@ class BlockchainAgent:
         Available operations:
         1. transfer - Send ETH to an address
         2. balance - Check account balance
-        3. token - Handle token operations (not implemented yet)
+        3. fusion - Bridge USDC from Base to Arbitrum using 1inch Fusion+
 
         For ALL inputs, respond with a JSON object containing:
         {
-            "operation_type": "transfer" or "balance",
+            "operation_type": "transfer" or "balance" or "fusion",
             "parameters": {
                 // For transfer:
                 "to_address": "ethereum_address",
                 "amount": number,
                 
                 // For balance:
-                "address": "ethereum_address"
+                "address": "ethereum_address",
+                
+                // For fusion:
+                "amount": number
             }
         }
         """
@@ -257,13 +345,14 @@ class BlockchainAgent:
 
     def _print_help(self):
         help_text = f"""
-{Fore.CYAN}Available Commands:{Style.RESET_ALL}
-├─ {Fore.GREEN}balance{Style.RESET_ALL} - Check your balance
-├─ {Fore.GREEN}send X ETH to ADDRESS{Style.RESET_ALL} - Send ETH to an address
-├─ {Fore.GREEN}help{Style.RESET_ALL} - Show this help message
-├─ {Fore.GREEN}history{Style.RESET_ALL} - Show transaction history
-└─ {Fore.GREEN}exit{Style.RESET_ALL} - Exit the program
-"""
+    {Fore.CYAN}Available Commands:{Style.RESET_ALL}
+    ├─ {Fore.GREEN}balance{Style.RESET_ALL} - Check your balance
+    ├─ {Fore.GREEN}send X ETH to ADDRESS{Style.RESET_ALL} - Send ETH to an address
+    ├─ {Fore.GREEN}fusion X USDC{Style.RESET_ALL} - Bridge USDC to Arbitrum using 1inch Fusion+
+    ├─ {Fore.GREEN}help{Style.RESET_ALL} - Show this help message
+    ├─ {Fore.GREEN}history{Style.RESET_ALL} - Show transaction history
+    └─ {Fore.GREEN}exit{Style.RESET_ALL} - Exit the program
+    """
         print(help_text)
 
     def _show_transaction_history(self):
@@ -280,7 +369,22 @@ class BlockchainAgent:
             print(f"└─ Time: {tx['time']}\n")
 
     def _execute_operation(self, operation_type: str, params: Dict):
-        if operation_type == "transfer":
+        if operation_type == "fusion":
+            previous_network = self.current_network
+            self.set_network('base')
+            print(f"\n{Fore.CYAN}Executing Fusion+ swap...{Style.RESET_ALL}")
+            
+            try:
+                # Pass transaction_history to FusionOperation
+                op = FusionOperation(self.current_network, self.transaction_history)
+                if not op.validate(params['amount']):
+                    raise Exception("Fusion validation failed")
+                result = op.execute(params['amount'])
+                return result
+            finally:
+                # Switch back to Base Sepolia for other operations
+                self.current_network = previous_network
+        elif operation_type == "transfer":
             print(f"\n{Fore.CYAN}Executing transfer...{Style.RESET_ALL}")
             with tqdm(total=100, desc="Processing", bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt}') as pbar:
                 op = TransferOperation(self.current_network)
@@ -301,7 +405,6 @@ class BlockchainAgent:
                 
                 self._print_transaction_summary(result.transactionHash.hex(), params['amount'])
                 return result
-                
         elif operation_type == "balance":
             op = BalanceOperation(self.current_network)
             result = op.execute(params.get('address', self.account.address))
@@ -444,7 +547,20 @@ class BlockchainAgent:
                     return "Balance check completed."
                 except ValueError:
                     return f"{Fore.RED}Invalid Ethereum address format.{Style.RESET_ALL}"
-                
+            
+            # Handle Fusion+ commands
+            if any(x in lower_message for x in ['fusion', 'bridge usdc', 'fusion+']):
+                # Extract amount from message
+                words = lower_message.split()
+                for i, word in enumerate(words):
+                    try:
+                        amount = float(word)
+                        result = self._execute_operation('fusion', {'amount': amount})
+                        return f"{Fore.GREEN}Fusion+ swap initiated successfully.{Style.RESET_ALL}"
+                    except ValueError:
+                        continue
+                return f"{Fore.RED}Please specify the USDC amount to swap.{Style.RESET_ALL}"
+            
             # For other commands, use GPT to parse intent
             intent = self._parse_intent(user_message)
             
@@ -457,16 +573,22 @@ class BlockchainAgent:
                 return f"{Fore.GREEN}Transfer completed successfully.{Style.RESET_ALL}"
             elif intent['operation_type'] == 'balance':
                 return "Balance check completed."
-            
+            elif intent['operation_type'] == 'fusion':
+                return f"{Fore.GREEN}Fusion+ swap initiated successfully.{Style.RESET_ALL}"
+                
         except Exception as e:
             return f"{Fore.RED}Error processing request: {str(e)}{Style.RESET_ALL}"
-
     def _initialize_networks(self) -> Dict[str, BlockchainNetwork]:
         return {
             'base-sepolia': BlockchainNetwork(
                 'base-sepolia',
                 os.getenv('BASE_SEPOLIA_URL', 'https://sepolia.base.org'),
                 84532
+            ),
+            'base': BlockchainNetwork(
+                'base',
+                os.getenv('BASE_URL', 'https://mainnet.base.org'),
+                8453
             )
         }
 
@@ -477,8 +599,9 @@ class BlockchainAgent:
 
     def chat(self):
         print(f"{Fore.GREEN}Blockchain AI Agent initialized. Type 'help' for commands.{Style.RESET_ALL}")
-        self.set_network('base-sepolia')
-        print(f"{Fore.CYAN}Network: Base Sepolia{Style.RESET_ALL}\n")
+        self.set_network('base-sepolia')  # Default to Base Sepolia
+        print(f"{Fore.CYAN}Network: Base Sepolia (default){Style.RESET_ALL}")
+        print(f"{Fore.CYAN}Network for Fusion+: Base Mainnet{Style.RESET_ALL}\n")
         
         while True:
             try:
