@@ -1,4 +1,4 @@
-const REGISTRY_ADDRESS = "0x704c19489FA0e2203FD2E85D0e4e6d4Fe62E0BDD"; // @reminder change this to registered AI Agent address
+const REGISTRY_ADDRESS = "0xF49bea6547314e336B82838785f5777f5ceC75DE"; // @reminder change this to registered AI Agent address
 const REGISTRY_ABI = [
   "function acceptOwnership() external",
   "function agentConfigs(address) external view returns (uint96 valueThreshold, uint96 gasThreshold, bool isSetup2FA, bool isActive, string memory metadata, address owner)",

@@ -65,6 +65,8 @@ const defaultSettings = {
   telegramChatId: null,
 };
 
+const FUSION_THRESHOLD = "0.5"; // Default threshold in USDC demo purposes
+
 bot.setMyCommands([
   { command: "start", description: "🚀 Start" },
   { command: "register", description: "📝 Register AI Agent" },
@@ -869,6 +871,117 @@ Do you approve this transaction?`;
   } catch (error) {
     console.error("Error processing approval request:", error);
     logger.error(`Error processing approval request: ${error.message}`);
+    return res.status(500).json({
+      error: "Internal server error",
+      details: error.message,
+    });
+  }
+});
+
+app.post("/api/request-fusion-approval", async (req, res) => {
+  try {
+    const { agentAddress, amount, type } = req.body;
+    logger.info(`Fusion approval request received for agent ${agentAddress}`);
+    logger.info(`Amount: ${amount} USDC`);
+
+    if (!amount || !agentAddress) {
+      return res.status(400).json({
+        error: "Invalid request format",
+      });
+    }
+
+    const settings = agentSettings.get(agentAddress);
+    const has2FAEnabled = settings?.isSetup2FA || false;
+
+    // Check if amount exceeds threshold
+    if (parseFloat(amount) <= parseFloat(FUSION_THRESHOLD)) {
+      return res.json({
+        approved: true,
+        used2FA: false,
+        required2FA: false,
+      });
+    }
+
+    const approvalId = Date.now().toString();
+    logger.info(
+      `Created fusion approval request ${approvalId} for agent ${agentAddress}`
+    );
+
+    pendingApprovals.set(approvalId, {
+      type: "fusion",
+      amount,
+      agentAddress,
+      status: "pending",
+      timestamp: Date.now(),
+      used2FA: false,
+    });
+
+    const message = `🚨 *High Value Fusion+ Swap Detected!*
+      
+*AI Agent:* \`${agentAddress}\`
+
+*Swap Details:*
+• Amount: ${amount} USDC ⚠️
+• From: Base USDC
+• To: Arbitrum USDC
+
+*Threshold:*
+• Value: ${FUSION_THRESHOLD} USDC
+
+❗ Amount exceeds threshold
+${has2FAEnabled ? "🔐 2FA Verification Required" : ""}
+
+Do you approve this swap?`;
+
+    // Get chat ID from agent settings
+    const onChainConfig = await getAgentConfigFromChain(agentAddress);
+
+    await bot.sendMessage(onChainConfig.metadata, message, {
+      parse_mode: "Markdown",
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: "✅ Approve", callback_data: `approve_${approvalId}` },
+            { text: "❌ Reject", callback_data: `reject_${approvalId}` },
+          ],
+        ],
+      },
+    });
+
+    // Use the same approval checking logic as the existing endpoint
+    return new Promise((resolve) => {
+      const checkInterval = setInterval(() => {
+        const approval = pendingApprovals.get(approvalId);
+
+        if (Date.now() - approval.timestamp > 300000) {
+          clearInterval(checkInterval);
+          pendingApprovals.delete(approvalId);
+          resolve(
+            res.json({
+              approved: false,
+              used2FA: false,
+              required2FA: has2FAEnabled,
+              reason: "Approval timeout",
+            })
+          );
+        }
+
+        if (approval.status !== "pending") {
+          clearInterval(checkInterval);
+          pendingApprovals.delete(approvalId);
+          resolve(
+            res.json({
+              approved: approval.status === "approved",
+              used2FA: approval.used2FA || false,
+              required2FA: has2FAEnabled,
+            })
+          );
+        }
+      }, 1000);
+    });
+  } catch (error) {
+    console.error("Error processing fusion approval request:", error);
+    logger.error(`Error processing fusion approval request: ${error.message}`);
     return res.status(500).json({
       error: "Internal server error",
       details: error.message,

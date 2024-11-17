@@ -186,7 +186,8 @@ class FusionOperation(Operation):
     def __init__(self, blockchain_network: BlockchainNetwork, transaction_history: list):
         super().__init__(blockchain_network)
         self.account = Account.from_key(os.getenv('PRIVATE_KEY'))
-        self.transaction_history = transaction_history 
+        self.transaction_history = transaction_history
+        self.usdc_threshold = 0.5  # 0.5 USDC threshold
 
     def validate(self, amount: float) -> bool:
         try:
@@ -221,7 +222,107 @@ class FusionOperation(Operation):
             print(f"{Fore.RED}Validation error: {str(e)}{Style.RESET_ALL}")
             return False
 
+    def request_approval(self, amount: float) -> dict:
+        try:
+            print(f"{Fore.CYAN}Requesting Fusion+ approval...{Style.RESET_ALL}")
+            
+            url = "http://localhost:3000/api/request-fusion-approval"
+            payload = {
+                "agentAddress": self.account.address,
+                "amount": str(amount),
+                "type": "fusion"
+            }
+
+            response = requests.post(url, json=payload)
+            result = response.json()
+            
+            # Handle response with 2FA status
+            if result.get("approved"):
+                if result.get("required2FA"):
+                    if result.get("used2FA"):
+                        print(f"{Fore.GREEN}Fusion+ swap approved with 2FA verification ✓{Style.RESET_ALL}")
+                    else:
+                        print(f"{Fore.YELLOW}Fusion+ swap approved without 2FA (2FA is enabled but not used) ⚠️{Style.RESET_ALL}")
+                else:
+                    print(f"{Fore.GREEN}Fusion+ swap approved{Style.RESET_ALL}")
+                return result
+            else:
+                if "reason" in result and result["reason"] == "Approval timeout":
+                    print(f"{Fore.YELLOW}Fusion+ swap timed out waiting for approval{Style.RESET_ALL}")
+                else:
+                    print(f"{Fore.YELLOW}Fusion+ swap rejected{Style.RESET_ALL}")
+                return result
+
+        except Exception as e:
+            print(f"{Fore.RED}Approval request error: {str(e)}{Style.RESET_ALL}")
+            raise
+
     def execute(self, amount: float):
+        try:
+            print(f"\n{Fore.CYAN}Initiating Fusion+ swap...{Style.RESET_ALL}")
+            print(f"From: Base USDC")
+            print(f"To: Arbitrum USDC")
+            print(f"Amount: {amount} USDC\n")
+            
+            with tqdm(total=100, desc="Processing", bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt}') as pbar:
+                pbar.update(20)
+                
+                # Check if amount exceeds threshold and request approval if needed
+                if amount > self.usdc_threshold:
+                    approval_result = self.request_approval(amount)
+                    
+                    if not approval_result.get("approved"):
+                        if approval_result.get("reason") == "Approval timeout":
+                            raise Exception("Fusion+ swap timed out waiting for approval")
+                        raise Exception("Fusion+ swap rejected by approval server")
+                    
+                    # Add security recommendation if 2FA is not being used
+                    if approval_result.get("required2FA") and not approval_result.get("used2FA"):
+                        print(f"\n{Fore.YELLOW}Security Recommendation:{Style.RESET_ALL}")
+                        print("• 2FA is enabled but was not used for this approval")
+                        print("• Consider using 2FA for enhanced security on high-value transactions")
+                        print("• You can configure 2FA settings in the Telegram bot")
+                
+                pbar.update(30)
+                
+                # Call the Node.js service
+                response = requests.post(
+                    'http://localhost:3001/fusion-swap',
+                    json={"amount": str(amount)}
+                )
+                
+                pbar.update(25)
+                
+                if response.status_code != 200:
+                    raise Exception(f"Fusion swap failed: {response.json().get('error')}")
+                    
+                result = response.json()
+                pbar.update(25)
+                
+                # Add to transaction history
+                self.transaction_history.append({
+                    'hash': result['orderHash'],
+                    'type': 'Fusion+ Swap',
+                    'amount': amount,
+                    'from': 'Base USDC',
+                    'to': 'Arbitrum USDC',
+                    'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    'status': 'pending'
+                })
+                
+                print(f"\n{Fore.GREEN}Fusion+ swap initiated successfully!{Style.RESET_ALL}")
+                print(f"Order hash: {Fore.YELLOW}{result['orderHash']}{Style.RESET_ALL}")
+                print(f"\n{Fore.CYAN}Status:{Style.RESET_ALL}")
+                print("• The swap will be processed automatically via Fusion+")
+                print("• This process can take several minutes")
+                print("• You can check the status in transaction history")
+                print(f"• Track on 1inch: https://fusion.1inch.io/history")
+                
+                return result
+                
+        except Exception as e:
+            print(f"{Fore.RED}Fusion execution error: {str(e)}{Style.RESET_ALL}")
+            raise
         try:
             print(f"\n{Fore.CYAN}Initiating Fusion+ swap...{Style.RESET_ALL}")
             print(f"From: Base USDC")
@@ -279,7 +380,7 @@ class BlockchainAgent:
         self.private_key = os.getenv('PRIVATE_KEY')
         self.account = Account.from_key(self.private_key)
         self.transaction_history = []
-        
+
         print(f"{Fore.GREEN}✓ Successfully initialized with address:{Style.RESET_ALL}")
         print(f"{Fore.YELLOW}{self.account.address}{Style.RESET_ALL}\n")
         
