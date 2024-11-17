@@ -16,6 +16,8 @@ AI Agent Guardian is a security middleware solution that provides human oversigh
 **Core Value Proposition:**
 "Bringing human intelligence to autonomous AI operations without sacrificing efficiency"
 
+![Welcome Message](welcome_message.png)
+
 ---
 
 ## Table of Contents
@@ -23,8 +25,8 @@ AI Agent Guardian is a security middleware solution that provides human oversigh
 ### 1. Foundation
 
 - [Overview](#overview)
-- [Key Features](#key-features)
-- [Architecture](#architecture)
+  - [Key Features](#key-features)
+  - [Architecture](#architecture)
 
 ### 2. Technical Infrastructure
 
@@ -132,6 +134,8 @@ The Telegram bot serves as the primary interface for managing AI agents and hand
 - `/settings`: Configure agent security settings
 - `/agents`: View list of registered agents
 - `/help`: Display available commands
+
+![Telegram Bot Menu](menu.png)
 
 ### Security Features
 
