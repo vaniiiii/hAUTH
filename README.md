@@ -101,7 +101,7 @@ The `AgentsRegistry` contract serves as the backbone of the system, storing and 
 - 🟢 Morph (Holesky): [`0x438751D3309247De00185DEDb5874Dbb99aD7c3C`](https://explorer-holesky.morphl2.io/address/0x438751D3309247De00185DEDb5874Dbb99aD7c3C)
 - 🟢 Rome (Testnet): [`0x438751D3309247De00185DEDb5874Dbb99aD7c3C`](https://rome.testnet.romeprotocol.xyz:1000/address/0x438751D3309247De00185DEDb5874Dbb99aD7c3C)
 - 🟢 Scroll (Sepolia): [`0x438751D3309247De00185DEDb5874Dbb99aD7c3C`](https://sepolia.scrollscan.com/address/0x438751D3309247De00185DEDb5874Dbb99aD7c3C)
-- 🟢 Flow (Testnet): [`0x438751D3309247De00185DEDb5874Dbb99aD7c3C`](https://testnet.flowdiver.io/address/0x438751D3309247De00185DEDb5874Dbb99aD7c3C)
+- 🟢 Flow (Testnet): [`0x438751D3309247De00185DEDb5874Dbb99aD7c3C`](https://evm-testnet.flowscan.io/address/0x438751D3309247De00185DEDb5874Dbb99aD7c3C)
 
 Legend:
 
