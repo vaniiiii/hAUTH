@@ -312,4 +312,8 @@ ALCHEMY_API_KEY=your_alchemy_api_key
 
 ## Future Improvements
 
-[TODO: Add future improvments]
+- Co-Owned AIs
+- Advanced dashboard for easy Agent configuration and activity monitoring
+- Diversified mobile app integrations
+- In app integrated LLM AI Agent
+- Generelized plugin for diverse AI Agents
