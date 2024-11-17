@@ -93,11 +93,19 @@ The `AgentsRegistry` contract serves as the backbone of the system, storing and 
 
 #### Deployment Addresses
 
-[TODO: Add contract addresses for supported chains]
+- 🟢 Base Sepolia: [`0xf77f3E6ed19DAFe90f90c3C1609207902C7414f9`](https://sepolia.basescan.org/address/0xf77f3E6ed19DAFe90f90c3C1609207902C7414f9)
+- 🟢 Celo (Alfajores): [`0x438751D3309247De00185DEDb5874Dbb99aD7c3C`](https://alfajores.celoscan.io/address/0x438751D3309247De00185DEDb5874Dbb99aD7c3C)
+- 🟢 Polygon (Amoy): [`0xfF35E64807479DB10F6b6462796f8c1d567ba888`](https://amoy.polygonscan.com/address/0xfF35E64807479DB10F6b6462796f8c1d567ba888)
+- 🟢 Neon EVM (Devnet): [`0x438751D3309247De00185DEDb5874Dbb99aD7c3C`](https://devnet.neonscan.org/address/0x438751D3309247De00185DEDb5874Dbb99aD7c3C)
+- 🟢 Linea (Sepolia): [`0xfF35E64807479DB10F6b6462796f8c1d567ba888`](https://sepolia.lineascan.build/address/0xfF35E64807479DB10F6b6462796f8c1d567ba888)
+- 🟢 Morph (Holesky): [`0x438751D3309247De00185DEDb5874Dbb99aD7c3C`](https://explorer-holesky.morphl2.io/address/0x438751D3309247De00185DEDb5874Dbb99aD7c3C)
+- 🟢 Rome (Testnet): [`0x438751D3309247De00185DEDb5874Dbb99aD7c3C`](https://rome.testnet.romeprotocol.xyz:1000/address/0x438751D3309247De00185DEDb5874Dbb99aD7c3C)
+- 🟢 Scroll (Sepolia): [`0x438751D3309247De00185DEDb5874Dbb99aD7c3C`](https://sepolia.scrollscan.com/address/0x438751D3309247De00185DEDb5874Dbb99aD7c3C)
+- 🟢 Flow (Testnet): [`0x438751D3309247De00185DEDb5874Dbb99aD7c3C`](https://testnet.flowdiver.io/address/0x438751D3309247De00185DEDb5874Dbb99aD7c3C)
 
-- Base Sepolia: `0x...`
-- Base Mainnet: `0x...`
-- [Other supported chains...]
+Legend:
+
+- 🟢 Deployed and operational
 
 #### Key Structures
 
