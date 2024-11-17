@@ -1,66 +1,47 @@
-## Foundry
+# AgentsRegistry
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+A Solidity contract for managing on-chain configurations of AI agents. It allows secure and flexible configuration of value thresholds, gas thresholds, 2FA, and metadata.
 
-Foundry consists of:
+## Features
 
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
-
-## Documentation
-
-https://book.getfoundry.sh/
+- **Agent Management**: Register, update, and deactivate AI agents.
+- **Threshold Settings**: Set value and gas thresholds for transaction approvals.
+- **2FA Integration**: Enable or disable two-factor authentication for agents.
+- **Metadata Support**: Add and update agent-specific metadata (e.g., Telegram usernames).
+- **User-Friendly Queries**: Retrieve all agents associated with a specific user.
 
 ## Usage
 
-### Build
+1. **Register an Agent**:
+   - Define thresholds, metadata, and ownership.
+2. **Update Configurations**:
+   - Modify thresholds or metadata as needed.
+3. **Transaction Approval**:
+   - Verify if a transaction requires approval or 2FA.
 
-```shell
-$ forge build
+## Events
+
+- `AgentRegistered`: Logs new agent registrations.
+- `AgentConfigUpdated`: Logs threshold updates.
+- `Agent2FAStatusChanged`: Logs 2FA status changes.
+- `AgentDeactivated`: Logs agent deactivations.
+- `MetadataUpdated`: Logs metadata updates.
+
+## Compilation
+
+```bash
+forge install
+forge build
 ```
 
-### Test
+## Test
 
-```shell
-$ forge test
+```bash
+forge test
 ```
 
-### Format
+## Deployment
 
-```shell
-$ forge fmt
-```
-
-### Gas Snapshots
-
-```shell
-$ forge snapshot
-```
-
-### Anvil
-
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
+```bash
+forge script script/AgentsRegistry.s.sol:AgentsRegistryScript --rpc-url $RPC_URL --broadcast
 ```

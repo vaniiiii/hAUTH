@@ -288,7 +288,7 @@ POST /api/request-fusion-approval
 
 ### Prerequisites
 
-- Node.js 16+
+- Node.js 18+
 - Python 3.8+
 - OpenAI API key
 - Telegram Bot Token
@@ -306,14 +306,112 @@ ALCHEMY_API_KEY=your_alchemy_api_key
 
 ### Installation
 
-[TODO: Add installation steps]
+Follow these steps to set up the complete hAUTH system:
 
----
+#### 1. Prerequisites
 
-## Future Improvements
+- [Foundry](https://book.getfoundry.sh/getting-started/installation) for smart contract development
+- [Node.js](https://nodejs.org/) (v16 or higher)
+- [Telegram Account](https://telegram.org/) for bot setup
+- [Alchemy Account](https://www.alchemy.com/) for RPC access
 
+<<<<<<< Updated upstream
 - Co-Owned AIs
 - Advanced dashboard for easy Agent configuration and activity monitoring
 - Diversified mobile app integrations
 - In app integrated LLM AI Agent
 - Generelized plugin for diverse AI Agents
+=======
+#### 2. Smart Contract Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/hauth
+cd hauth
+
+# Navigate to contracts directory
+cd storage
+
+# Install dependencies
+forge install
+
+# Build contracts
+forge build
+
+# Run tests
+forge test
+
+# Deploy contracts (repeat for each network)
+forge script script/AgentsRegistry.s.sol:AgentsRegistryScript --rpc-url $RPC_URL --broadcast
+```
+
+#### 3. Environment Setup
+
+1. Copy the example environment file from root directory:
+
+```bash
+cp .env.example .env
+```
+
+2. Fill in the required environment variables:
+
+```bash
+# Telegram Bot Token (from BotFather)
+BOT_TOKEN=your_bot_token_here
+
+# Ethereum Wallet Private Key
+PRIVATE_KEY=your_private_key_here
+
+# Alchemy API Key
+ALCHEMY_API_KEY=your_alchemy_api_key_here
+```
+
+#### 4. Update Registry Address
+
+1. Navigate to `hauth/constants.js`
+2. Update the `REGISTRY_ADDRESS` constant with your deployed contract address
+
+#### 5. Run the bot
+
+```bash
+# From project root directory
+node hauth/index.js
+```
+
+#### 6. Run AI Agent
+
+Test AI Agent:
+
+```bash
+# Run the test agent
+node ai-agents/testAgent.js
+```
+
+Python AI Agent:
+
+1. Fill additional environment variables:
+
+```bash
+# 1inch and OpenAI API keys
+INCH_API_KEY=your_1inch_api_key
+PRIVATE_KEY=your_private_key
+BASE_URL=https://mainnet.base.org
+OPENAI_API_KEY=your_openai_api_key
+BASE_SEPOLIA_URL=https://base-sepolia-rpc.publicnode.com
+```
+
+2. Start the 1inch Fusion service:
+
+```bash
+# Run 1inch service
+node 1inchService.js
+```
+
+3. Run the Python AI agent:
+
+```bash
+# Start the Python agent
+
+python3 main.py
+```
+>>>>>>> Stashed changes
