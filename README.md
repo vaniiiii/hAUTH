@@ -106,6 +106,7 @@ The `AgentsRegistry` contract serves as the backbone of the system, storing and 
 - 🟢 Rome (Testnet): [`0x438751D3309247De00185DEDb5874Dbb99aD7c3C`](https://rome.testnet.romeprotocol.xyz:1000/address/0x438751D3309247De00185DEDb5874Dbb99aD7c3C)
 - 🟢 Scroll (Sepolia): [`0x438751D3309247De00185DEDb5874Dbb99aD7c3C`](https://sepolia.scrollscan.com/address/0x438751D3309247De00185DEDb5874Dbb99aD7c3C)
 - 🟢 Flow (Testnet): [`0x438751D3309247De00185DEDb5874Dbb99aD7c3C`](https://evm-testnet.flowscan.io/address/0x438751D3309247De00185DEDb5874Dbb99aD7c3C)
+- 🟢 Rootstock (Testnet): [`0xfdd2dd20515b7ab1f88344f2e3baf8702b7a50fa`](https://explorer.testnet.rootstock.io/address/0xfdd2dd20515b7ab1f88344f2e3baf8702b7a50fa)
 
 Legend:
 
