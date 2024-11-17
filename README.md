@@ -167,7 +167,7 @@ The Telegram bot serves as the primary interface for managing AI agents and hand
 
 ### Overview
 
-The Python implementation demonstrates how to integrate AI agents with the Guardian system.
+The Python implementation demonstrates how to integrate AI agents with the Guardian system. The AI agent runs inside a Trusted Execution Environment (TEE) powered by Phala Network, ensuring secure and verifiable execution of the agent's operations. This implementation leverages Phala's TEE infrastructure to guarantee that the AI agent's operations are tamper-proof and its credentials remain secure from external access.
 
 ![AI Agent Interface](ai_agent.png)
 
@@ -178,6 +178,9 @@ The Python implementation demonstrates how to integrate AI agents with the Guard
 - Transaction history tracking
 - Colorized console interface
 - Fusion+ cross-chain USDC transfers
+- **Secure Execution**: Runs in Phala Network's TEE environment
+- **Verifiable Computation**: All operations are verifiable through TEE attestation
+- **Tamper-proof Credentials**: Private keys and sensitive data are protected within the TEE
 
 ### Commands
 
