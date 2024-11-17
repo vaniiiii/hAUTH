@@ -62,8 +62,6 @@ AI Agent hAUTH is a security middleware solution that provides human oversight f
 
 ---
 
-[Rest of your documentation content remains the same...]
-
 ## Overview
 
 AI Agent hAUTH provides a secure human authentication layer for autonomous AI agents operating with blockchain operations(e.g. DeFi). It addresses the critical challenge of ensuring human oversight over high-value or high-risk transactions initiated by AI agents, preventing potential issues arising from hallucinations or unreliable AI behaviors.
