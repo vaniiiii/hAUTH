@@ -1,12 +1,12 @@
-# 🛡️ AI Agent Guardian
+# 🛡️ hAUTH
 
 ## Secure Human Authentication Layer for Autonomous AI Agents
 
 ## At a Glance 🔍
 
-AI Agent Guardian is a security middleware solution that provides human oversight for autonomous AI agents operating on blockchain networks. In an era where AI agents are increasingly handling complex DeFi operations, the need for human verification on critical transactions has become paramount.
+AI Agent hAUTH is a security middleware solution that provides human oversight for autonomous AI agents operating on blockchain networks. In an era where AI agents are increasingly handling complex DeFi operations, the need for human verification on critical transactions has become paramount.
 
-**Why AI Agent Guardian?**
+**Why hAUTH?**
 
 - 🤖 AI agents can experience hallucinations or unreliable behaviors
 - 💰 Cryptocurrency operations involve real financial risks
@@ -38,7 +38,7 @@ AI Agent Guardian is a security middleware solution that provides human oversigh
 
 ### 3. Interface & Operations
 
-- [Guardian Bot (Telegram Interface)](#guardian-bot-telegram-interface)
+- [hAUTH Bot (Telegram Interface)](#hauth-bot-telegram-interface)
   - [Commands](#commands)
   - [Security Features](#security-features)
   - [Transaction Approval Flow](#transaction-approval-flow)
@@ -66,7 +66,7 @@ AI Agent Guardian is a security middleware solution that provides human oversigh
 
 ## Overview
 
-AI Agent Guardian provides a secure human authentication layer for autonomous AI agents operating with blockchain operations(e.g. DeFi). It addresses the critical challenge of ensuring human oversight over high-value or high-risk transactions initiated by AI agents, preventing potential issues arising from hallucinations or unreliable AI behaviors.
+AI Agent hAUTH provides a secure human authentication layer for autonomous AI agents operating with blockchain operations(e.g. DeFi). It addresses the critical challenge of ensuring human oversight over high-value or high-risk transactions initiated by AI agents, preventing potential issues arising from hallucinations or unreliable AI behaviors.
 
 ### Key Features
 
@@ -123,7 +123,7 @@ struct AgentConfig {
 
 ---
 
-## Guardian Bot (Telegram Interface)
+## hAUTH Bot (Telegram Interface)
 
 The Telegram bot serves as the primary interface for managing AI agents and handling transaction approvals.
 
@@ -167,7 +167,7 @@ The Telegram bot serves as the primary interface for managing AI agents and hand
 
 ### Overview
 
-The Python implementation demonstrates how to integrate AI agents with the Guardian system. The AI agent runs inside a Trusted Execution Environment (TEE) powered by Phala Network, ensuring secure and verifiable execution of the agent's operations. This implementation leverages Phala's TEE infrastructure to guarantee that the AI agent's operations are tamper-proof and its credentials remain secure from external access.
+The Python implementation demonstrates how to integrate AI agents with the hAUTH system. The AI agent runs inside a Trusted Execution Environment (TEE) powered by Phala Network, ensuring secure and verifiable execution of the agent's operations. This implementation leverages Phala's TEE infrastructure to guarantee that the AI agent's operations are tamper-proof and its credentials remain secure from external access.
 
 ![AI Agent Interface](ai_agent.png)
 

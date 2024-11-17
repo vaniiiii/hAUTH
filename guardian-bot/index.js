@@ -328,7 +328,7 @@ bot.onText(/\/help/, async (msg) => {
 3. Enable 2FA (recommended)
 4. Bot will notify you of high-value transactions
 
-Need more help? Contact support at support@guardianbot.com`,
+Need more help? Contact support at support@huath.com`,
     { parse_mode: "Markdown" }
   );
 });
