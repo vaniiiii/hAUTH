@@ -83,8 +83,7 @@ The system consists of three main components:
 2. **Authentication Server**: Node.js server handling approval requests and Telegram integration
 3. **AI Agent SDK**: Python implementation for AI agents to integrate with the authentication system
 
-![Architecture](hAUTH_Architecture.png)
----
+## ![Architecture](hAUTH_Architecture.png)
 
 ## Smart Contract Infrastructure
 
@@ -284,6 +283,30 @@ POST /api/request-fusion-approval
 
 ---
 
+## Coinbase CDP AgentKit Implementation
+
+### Overview
+
+In addition to our custom Python implementation, we leverage Coinbase's CDP AgentKit as a foundation for building secure AI agents. This implementation also runs within Phala Network's TEE environment, ensuring secure and verifiable execution.
+
+### Why CDP AgentKit?
+
+- **Model Flexibility**: Supports multiple LLM providers (OpenAI, Claude, Llama)
+- **CDP SDK Integration**: Native support for on-chain operations
+- **Extensible Architecture**: Template structure for custom functionality
+- **LangChain Compatibility**: Integrates with existing LangChain tools
+- **Security Integration**: Seamlessly works with hAUTH's security layer for high-risk transactions
+
+### AgentKit Features
+
+The CDP AgentKit integration provides:
+
+- **On-chain Operations**: Direct interaction with blockchain operations
+- **Transaction Management**: Handles transfers, swaps, and contract deployments
+- **Risk Management**: Integration with hAUTH for transaction verification
+- **TEE Security**: Runs in Phala's trusted execution environment
+- **Base Network Support**: Optimized for Base network operations
+
 ## Development Setup
 
 ### Prerequisites
@@ -315,13 +338,6 @@ Follow these steps to set up the complete hAUTH system:
 - [Telegram Account](https://telegram.org/) for bot setup
 - [Alchemy Account](https://www.alchemy.com/) for RPC access
 
-<<<<<<< Updated upstream
-- Co-Owned AIs
-- Advanced dashboard for easy Agent configuration and activity monitoring
-- Diversified mobile app integrations
-- In app integrated LLM AI Agent
-- Generelized plugin for diverse AI Agents
-=======
 #### 2. Smart Contract Setup
 
 ```bash
@@ -414,4 +430,11 @@ node 1inchService.js
 
 python3 main.py
 ```
->>>>>>> Stashed changes
+
+## Future Improvements
+
+- Co-Owned AIs
+- Advanced dashboard for easy Agent configuration and activity monitoring
+- Diversified mobile app integrations
+- In app integrated LLM AI Agent
+- Generelized plugin for diverse AI Agents
