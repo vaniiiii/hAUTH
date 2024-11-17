@@ -169,6 +169,8 @@ The Telegram bot serves as the primary interface for managing AI agents and hand
 
 The Python implementation demonstrates how to integrate AI agents with the Guardian system.
 
+![AI Agent Interface](ai_agent.png)
+
 ### Features
 
 - OpenAI GPT-4 integration for intent parsing
