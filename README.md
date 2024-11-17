@@ -171,11 +171,11 @@ The Python implementation demonstrates how to integrate AI agents with the hAUTH
 
 ### Features
 
-- OpenAI GPT-4 integration for intent parsing
+- OpenAI GPT-4 integration
 - Multi-chain support (Base, Base Sepolia)
 - Transaction history tracking
 - Colorized console interface
-- Fusion+ cross-chain USDC transfers
+- Fusion+ cross-chain swaps
 - **Secure Execution**: Runs in Phala Network's TEE environment
 - **Verifiable Computation**: All operations are verifiable through TEE attestation
 - **Tamper-proof Credentials**: Private keys and sensitive data are protected within the TEE
