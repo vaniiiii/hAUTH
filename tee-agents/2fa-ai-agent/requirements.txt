@@ -1,0 +1,14 @@
+dstack-sdk==0.1.2
+asyncio>=3.4.3
+fastapi==0.111.0
+cryptography
+eth-hash[pycryptodome]
+openai
+web3
+eth-account
+tqdm
+colorama
+python-dotenv
+uvicorn
+jinja2
+requests

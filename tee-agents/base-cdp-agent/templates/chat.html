@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blockchain AI Assistant</title>
+    <style>
+        /* General reset */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: linear-gradient(145deg, #f8f9fa, #ffffff);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333333;
+        }
+
+        /* Modern Header */
+        header {
+            width: 100%;
+            max-width: 800px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 16px 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        .header-title {
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: #0052ff;
+        }
+
+        .branding {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .branding img {
+            height: 32px;
+            width: auto;
+        }
+
+        .branding span {
+            font-size: 0.9rem;
+            color: #6b7280;
+            font-weight: 500;
+        }
+
+        /* Chatbox */
+        #chat-box {
+            width: 100%;
+            max-width: 800px;
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            height: 400px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            border: 1px solid #dce1e7;
+        }
+
+        .message {
+            padding: 12px 18px;
+            border-radius: 12px;
+            max-width: 70%;
+            word-wrap: break-word;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .user-message {
+            align-self: flex-end;
+            background: #edf4ff;
+            color: #0052ff;
+        }
+
+        .agent-message {
+            align-self: flex-start;
+            background: #f1f3f5;
+            color: #333333;
+        }
+
+        /* Input Form */
+        #input-form {
+            width: 100%;
+            max-width: 800px;
+            margin-top: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #user-input {
+            flex: 1;
+            padding: 14px 16px;
+            border: 1px solid #dce1e7;
+            border-radius: 12px;
+            font-size: 14px;
+            outline: none;
+            background: #ffffff;
+            color: #374151;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        #user-input::placeholder {
+            color: #9ca3af;
+        }
+
+        #user-input:focus {
+            border-color: #0052ff;
+            box-shadow: 0 0 5px rgba(0, 82, 255, 0.3);
+        }
+
+        #input-form button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 12px;
+            background: #0052ff;
+            color: #ffffff;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s ease, transform 0.2s ease;
+        }
+
+        #input-form button:hover {
+            background: #003dbf;
+            transform: scale(1.02);
+        }
+
+        #input-form button:active {
+            background: #002a80;
+        }
+
+        #chat-box::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #chat-box::-webkit-scrollbar-thumb {
+            background: #e4e7eb;
+            border-radius: 4px;
+        }
+
+        #chat-box::-webkit-scrollbar-thumb:hover {
+            background: #cfd3d7;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-title">Blockchain AI Assistant</div>
+        <div class="branding">
+            <img src="https://base.org/favicon.ico" alt="Base Logo">
+            <span>Powered by Coinbase CDP</span>
+        </div>
+    </header>
+
+    <div id="chat-box"></div>
+
+    <form id="input-form">
+        <input
+            type="text"
+            id="user-input"
+            placeholder="Ask about blockchain or Base..."
+            autocomplete="off"
+        />
+        <button type="submit">Send</button>
+    </form>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const chatBox = document.getElementById("chat-box");
+            const inputForm = document.getElementById("input-form");
+            const userInput = document.getElementById("user-input");
+
+            function loadChatHistory() {
+                fetch("/chat-history")
+                    .then((response) => response.json())
+                    .then((data) => {
+                        chatBox.innerHTML = "";
+                        data.chatHistory.forEach((msg) => {
+                            const messageDiv = document.createElement("div");
+                            messageDiv.classList.add("message");
+                            messageDiv.classList.add(
+                                msg.sender === "user" ? "user-message" : "agent-message"
+                            );
+                            messageDiv.innerText = msg.message;
+                            chatBox.appendChild(messageDiv);
+                        });
+                        chatBox.scrollTop = chatBox.scrollHeight; // Scroll to bottom
+                    });
+            }
+
+            loadChatHistory();
+
+            inputForm.addEventListener("submit", function (event) {
+                event.preventDefault();
+                const text = userInput.value.trim();
+                if (text === "") return;
+                fetch(`/chat?text=${encodeURIComponent(text)}`)
+                    .then((response) => response.json())
+                    .then(() => {
+                        loadChatHistory();
+                        userInput.value = "";
+                    })
+                    .catch((error) => console.error("Error:", error));
+            });
+        });
+    </script>
+</body>
+</html>

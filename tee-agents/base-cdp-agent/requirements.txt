@@ -1,0 +1,41 @@
+dstack-sdk==0.1.2
+asyncio>=3.4.3
+fastapi==0.111.0
+cryptography
+eth-hash[pycryptodome]
+openai
+web3
+eth-account
+tqdm
+colorama
+python-dotenv
+uvicorn
+jinja2
+requests
+ecdsa
+# LangChain and Related Packages
+langchain
+
+# CDP LangChain Packages (Install from GitHub or Source)
+# Replace 'your-username' and 'your-repo' with the actual repository details
+# cdp-langchain @ git+https://github.com/coinbase/cdp-langchain.git@main
+# langgraph @ git+https://github.com/your-username/langgraph.git@main
+
+# Additional Dependencies (if not automatically installed)
+aiosignal
+anyio
+attrs
+certifi
+charset-normalizer
+frozenlist
+httpcore
+httpx
+idna
+multidict
+numpy
+python-dateutil
+six
+sniffio
+tenacity
+typing-extensions
+yarl

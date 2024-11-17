@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Blockchain AI Assistant</title>
+    <style>
+        /* General reset */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(145deg, #000000, #0c0c0c);
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            color: #00ff00;
+            overflow: hidden;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            color: #00ff00;
+            margin-bottom: 20px;
+            font-weight: 600;
+            text-shadow: 0 0 10px #00ff00, 0 0 20px #00ff00;
+        }
+
+        #chat-box {
+            width: 100%;
+            max-width: 800px;
+            background: #000000;
+            border: 2px solid #00ff00;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 0 20px #00ff00;
+            height: 400px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .message {
+            padding: 10px 15px;
+            border-radius: 10px;
+            max-width: 70%;
+            word-wrap: break-word;
+            font-size: 1rem;
+            line-height: 1.5;
+        }
+
+        .user-message {
+            align-self: flex-end;
+            background: #004400;
+            color: #00ff00;
+            box-shadow: 0 0 10px #00ff00;
+        }
+
+        .agent-message {
+            align-self: flex-start;
+            background: #002200;
+            color: #00ff00;
+            box-shadow: 0 0 10px #00ff00;
+        }
+
+        .merged-message {
+            align-self: stretch;
+            background: transparent;
+            color: #00ff00;
+            font-size: 0.9rem;
+            font-weight: bold;
+            padding: 10px 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            animation: flicker 1.5s infinite;
+        }
+
+        @keyframes flicker {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.8;
+            }
+        }
+
+        #input-form {
+            width: 100%;
+            max-width: 800px;
+            margin-top: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 15px;
+        }
+
+        #user-input {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #00ff00;
+            border-radius: 10px;
+            font-size: 16px;
+            outline: none;
+            background: #000000;
+            color: #00ff00;
+            box-shadow: 0 0 10px #00ff00 inset;
+        }
+
+        #user-input::placeholder {
+            color: #00aa00;
+        }
+
+        #user-input:focus {
+            border-color: #00ff00;
+            box-shadow: 0 0 20px #00ff00 inset;
+        }
+
+        #input-form button {
+            padding: 15px 30px;
+            border: 2px solid #00ff00;
+            border-radius: 10px;
+            background: #000000;
+            color: #00ff00;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 0 10px #00ff00;
+            transition: transform 0.2s, box-shadow 0.3s;
+        }
+
+        #input-form button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px #00ff00;
+        }
+
+        #input-form button:active {
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+<body>
+    <h1>Blockchain AI Assistant</h1>
+
+    <div id="chat-box"></div>
+
+    <form id="input-form">
+        <input
+            type="text"
+            id="user-input"
+            placeholder="Enter your query..."
+            autocomplete="off"
+        />
+        <button type="submit">Send</button>
+    </form>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const chatBox = document.getElementById("chat-box");
+            const inputForm = document.getElementById("input-form");
+            const userInput = document.getElementById("user-input");
+
+            // Function to load chat history and merge chained meta/system messages
+            function loadChatHistory() {
+                fetch("/chat-history")
+                    .then((response) => response.json())
+                    .then((data) => {
+                        chatBox.innerHTML = "";
+                        let mergedMessages = "";
+
+                        data.chatHistory.forEach((msg, index) => {
+                            // Check if the message should be merged
+                            if (msg.type === "meta" || msg.sender === "system") {
+                                mergedMessages += msg.message + "\n";
+                            } else {
+                                // If there are merged messages, display them before the new message
+                                if (mergedMessages) {
+                                    const mergedDiv = document.createElement("div");
+                                    mergedDiv.classList.add("merged-message");
+                                    mergedDiv.innerText = mergedMessages.trim();
+                                    chatBox.appendChild(mergedDiv);
+                                    mergedMessages = "";
+                                }
+                                const messageDiv = document.createElement("div");
+                                messageDiv.classList.add("message");
+                                messageDiv.classList.add(
+                                    msg.sender === "user"
+                                        ? "user-message"
+                                        : msg.sender === "agent"
+                                        ? "agent-message"
+                                        : ""
+                                );
+                                messageDiv.innerText = msg.message;
+                                chatBox.appendChild(messageDiv);
+                            }
+
+                            // Handle end of merged messages in the loop
+                            if (index === data.chatHistory.length - 1 && mergedMessages) {
+                                const mergedDiv = document.createElement("div");
+                                mergedDiv.classList.add("merged-message");
+                                mergedDiv.innerText = mergedMessages.trim();
+                                chatBox.appendChild(mergedDiv);
+                            }
+                        });
+
+                        chatBox.scrollTop = chatBox.scrollHeight; // Scroll to bottom
+                    });
+            }
+
+            // Initial load of chat history
+            loadChatHistory();
+
+            // Handle form submission
+            inputForm.addEventListener("submit", function (event) {
+                event.preventDefault(); // Prevent page reload
+
+                const text = userInput.value.trim();
+                if (text === "") return;
+
+                // Send user input to /chat endpoint
+                fetch(`/chat?text=${encodeURIComponent(text)}`)
+                    .then((response) => response.json())
+                    .then((data) => {
+                        if (data.error) {
+                            console.error("Error:", data.error);
+                            return;
+                        }
+                        loadChatHistory();
+                        userInput.value = "";
+                    })
+                    .catch((error) => console.error("Error:", error));
+            });
+        });
+    </script>
+</body>
+</html>
