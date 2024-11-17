@@ -52,6 +52,10 @@ AI Agent hAUTH is a security middleware solution that provides human oversight f
   - [Commands](#agent-commands)
   - [Operation Types](#operation-types)
   - [Integration Example](#integration-example)
+- [Coinbase CDP AgentKit Implementation](#coinbase-cdp-agentkit-implementation)
+  - [Overview](#overview-1)
+  - [Why CDP AgentKit?](#why-cdp-agentkit)
+  - [AgentKit Features](#agentkit-features)
 
 ### 5. Integration & Security
 
