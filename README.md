@@ -1,8 +1,68 @@
-# AI Agent Guardian
+# 🛡️ AI Agent Guardian
 
 ## Secure Human Authentication Layer for Autonomous AI Agents
 
-### Overview
+## At a Glance 🔍
+
+AI Agent Guardian is a security middleware solution that provides human oversight for autonomous AI agents operating on blockchain networks. In an era where AI agents are increasingly handling complex DeFi operations, the need for human verification on critical transactions has become paramount.
+
+**Why AI Agent Guardian?**
+
+- 🤖 AI agents can experience hallucinations or unreliable behaviors
+- 💰 Cryptocurrency operations involve real financial risks
+- 🔐 Human verification adds a crucial security layer
+- ⚡ Seamless integration with existing AI agents
+
+**Core Value Proposition:**
+"Bringing human intelligence to autonomous AI operations without sacrificing efficiency"
+
+---
+
+## Table of Contents
+
+### 1. Foundation
+
+- [Overview](#overview)
+- [Key Features](#key-features)
+- [Architecture](#architecture)
+
+### 2. Technical Infrastructure
+
+- [Smart Contract Infrastructure](#smart-contract-infrastructure)
+  - [Contract Details](#contract-details)
+  - [Deployment Addresses](#deployment-addresses)
+  - [Key Structures](#key-structures)
+  - [Core Functions](#core-functions)
+
+### 3. Interface & Operations
+
+- [Guardian Bot (Telegram Interface)](#guardian-bot-telegram-interface)
+  - [Commands](#commands)
+  - [Security Features](#security-features)
+  - [Transaction Approval Flow](#transaction-approval-flow)
+  - [Two-Factor Authentication](#two-factor-authentication)
+  - [Threshold Management](#threshold-management)
+
+### 4. Implementation
+
+- [Python AI Agent Implementation](#python-ai-agent-implementation)
+  - [Features](#features)
+  - [Commands](#agent-commands)
+  - [Operation Types](#operation-types)
+  - [Integration Example](#integration-example)
+
+### 5. Integration & Security
+
+- [API Endpoints](#api-endpoints)
+- [Security Considerations](#security-considerations)
+- [Development Setup](#development-setup)
+- [Future Improvements](#future-improvements)
+
+---
+
+[Rest of your documentation content remains the same...]
+
+## Overview
 
 AI Agent Guardian provides a secure human authentication layer for autonomous AI agents operating with blockchain operations(e.g. DeFi). It addresses the critical challenge of ensuring human oversight over high-value or high-risk transactions initiated by AI agents, preventing potential issues arising from hallucinations or unreliable AI behaviors.
 
