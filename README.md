@@ -83,6 +83,7 @@ The system consists of three main components:
 2. **Authentication Server**: Node.js server handling approval requests and Telegram integration
 3. **AI Agent SDK**: Python implementation for AI agents to integrate with the authentication system
 
+![Architecture](hAUTH_Architecture.png)
 ---
 
 ## Smart Contract Infrastructure
